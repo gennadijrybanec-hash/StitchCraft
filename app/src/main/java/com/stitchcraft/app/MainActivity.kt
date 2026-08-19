@@ -32,7 +32,10 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.floor
-
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +49,7 @@ enum class EditTool { COLOR, ERASE, COMPLETE }
 @Composable
 fun StitchCraftApp() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var width by remember { mutableFloatStateOf(80f) }
     var colors by remember { mutableFloatStateOf(24f) }
@@ -98,28 +102,44 @@ fun StitchCraftApp() {
                     onColors = { colors = it },
                     onCleanup = { cleanupSingles = it },
                     onGenerate = {
-                        val uri = selectedUri ?: return@CreateScreen
-                        busy = true
-                        message = null
-                        runCatching {
-                            context.contentResolver.openInputStream(uri).use { input ->
-                                requireNotNull(BitmapFactory.decodeStream(input))
-                            }
-                        }.onSuccess { bmp ->
-                            val w = width.toInt().coerceAtMost(if (isPro) ReleaseConfig.PRO_MAX_WIDTH else ReleaseConfig.FREE_MAX_WIDTH)
-                            val c = colors.toInt().coerceAtMost(if (isPro) ReleaseConfig.PRO_MAX_COLORS else ReleaseConfig.FREE_MAX_COLORS)
-                            pattern = PatternEngine.generate(
-                                bmp, w, c,
-                                PatternOptions(cleanupIsolatedStitches = cleanupSingles)
-                            )
-                            activeProject = null
-                            editingSession++
-                            tab = 1
-                        }.onFailure {
-                            message = "Не удалось обработать изображение: ${it.message}"
-                        }
-                        busy = false
+    val uri = selectedUri ?: return@CreateScreen
+
+    scope.launch {
+        busy = true
+        message = null
+
+        try {
+            val result = withContext(Dispatchers.Default) {
+                val bmp = context.contentResolver.openInputStream(uri).use { input ->
+                    requireNotNull(input) { "Не удалось открыть изображение" }
+                    requireNotNull(BitmapFactory.decodeStream(input)) {
+                        "Не удалось декодировать изображение"
                     }
+                }
+
+                val w = width.toInt().coerceAtMost(if (isPro) 300 else 120)
+                val c = colors.toInt().coerceAtMost(if (isPro) 100 else 32)
+
+                PatternEngine.generate(
+                    bmp,
+                    w,
+                    c,
+                    PatternOptions(cleanupIsolatedStitches = cleanupSingles)
+                )
+            }
+
+            pattern = result
+            activeProject = null
+            editingSession++
+            tab = 1
+
+        } catch (e: Exception) {
+            message = "Не удалось обработать изображение"
+        } finally {
+            busy = false
+        }
+    }
+}
                 )
 
                 1 -> PatternScreen(
