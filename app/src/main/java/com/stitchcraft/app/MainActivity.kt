@@ -76,6 +76,39 @@ val pngSaveLauncher = rememberLauncherForActivityResult(
     }
     pendingPngFile = null
 }
+   var pendingPdfFile by remember { mutableStateOf<java.io.File?>(null) }
+
+val pdfSaveLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.CreateDocument("application/pdf")
+) { uri ->
+    val file = pendingPdfFile
+    if (uri != null && file != null) {
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            file.inputStream().use { input ->
+                input.copyTo(output)
+            }
+        }
+        message = "PDF сохранён"
+    }
+    pendingPdfFile = null
+}
+
+var pendingCsvFile by remember { mutableStateOf<java.io.File?>(null) }
+
+val csvSaveLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.CreateDocument("text/csv")
+) { uri ->
+    val file = pendingCsvFile
+    if (uri != null && file != null) {
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            file.inputStream().use { input ->
+                input.copyTo(output)
+            }
+        }
+        message = "CSV сохранён"
+    }
+    pendingCsvFile = null
+}
     var isPro by remember { mutableStateOf(context.getSharedPreferences("prefs", 0).getBoolean("pro", false)) }
     val store = remember { ProjectStore(context) }
     var projects by remember { mutableStateOf(store.list()) }
@@ -173,11 +206,13 @@ val pngSaveLauncher = rememberLauncherForActivityResult(
                     },
                     onPdf = { p ->
                         val f = ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
-                        message = "PDF создан: ${f.name}"
+                        pendingPdfFile = f
+pdfSaveLauncher.launch(f.name)
                     },
                     onCsv = { p ->
                         val f = ExportManager.exportCsv(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
-                        message = "Таблица создана: ${f.name}"
+                        pendingCsvFile = f
+csvSaveLauncher.launch(f.name)
                     },
                     onPng = { p ->
                         val f = ExportManager.exportPng(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
