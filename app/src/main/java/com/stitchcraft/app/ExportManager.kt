@@ -10,7 +10,12 @@ import java.io.File
 import java.io.FileOutputStream
 
 object ExportManager {
-    fun exportPdf(context: Context, pattern: StitchPattern, projectName: String): File {
+    fun exportPdf(
+    context: Context,
+    pattern: StitchPattern,
+    projectName: String,
+    fabricCount: Int
+): File {
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
         val out = File(dir, "${sanitize(projectName)}.pdf")
         val pdf = PdfDocument()
@@ -23,6 +28,8 @@ object ExportManager {
         val pagesY = (pattern.height + cellsPerPage - 1) / cellsPerPage
         val totalPages = pagesX * pagesY
         var pageNo = 1
+        val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
+val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
         for (py in 0 until pagesY) for (px in 0 until pagesX) {
             val info = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNo++).create()
             val page = pdf.startPage(info)
@@ -33,8 +40,18 @@ object ExportManager {
             val endX = minOf(startX + cellsPerPage, pattern.width); val endY = minOf(startY + cellsPerPage, pattern.height)
             paint.textSize = 9f
     canvas.drawText("Cells X: ${startX + 1}–$endX, Y: ${startY + 1}–$endY", margin, 42f, paint)
+    paint.textSize = 10f
+canvas.drawText(
+    "Aida $fabricCount • %.1f × %.1f cm".format(
+        finishedWidthCm,
+        finishedHeightCm
+    ),
+    margin,
+    56f,
+    paint
+)
             val cell = minOf((pageWidth - margin * 2) / (endX - startX), 640f / (endY - startY))
-            val top = 54f
+            val top = 70f
                     paint.style = Paint.Style.FILL
         paint.color = Color.BLACK
         paint.textSize = 7f
