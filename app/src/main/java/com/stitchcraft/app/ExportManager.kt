@@ -43,11 +43,11 @@ object ExportManager {
                     canvas.drawText(pc.symbol, left + cell * .18f, t + cell * .72f, paint)
                 }
             }
-            paint.style = Paint.Style.FILL; paint.color = Color.BLACK; paint.textSize = 10f
+            paint.style = Paint.Style.FILL; paint.color = Color.BLACK; paint.textSize = 7f
             var line = 0
-            pattern.palette.take(12).forEachIndexed { i, c ->
+            pattern.palette.take(24).forEachIndexed { i, c ->
                 val col = line / 6; val row = line % 6
-                canvas.drawText("${PatternEngine.symbolForIndex(i)}  ${c.code}  ${c.name}", margin + col * 260f, 710f + row * 18f, paint)
+                canvas.drawText("${PatternEngine.symbolForIndex(i)}  ${c.code}  ${c.name}", margin + col * 130f, 710f + row * 18f, paint)
                 line++
             }
             pdf.finishPage(page)
