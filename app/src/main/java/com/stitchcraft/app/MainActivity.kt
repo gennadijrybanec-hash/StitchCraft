@@ -381,8 +381,8 @@ fun PatternCanvas(
     size.width / pattern.width,
     size.height / pattern.height
 ) * scale
-                    val offsetX = (size.width - pattern.width * cellSize) / 2f
-val offsetY = (size.height - pattern.height * cellSize) / 2f
+                    val offsetX = (size.width - pattern.width * cellSize) / 2f + panOffset.x
+val offsetY = (size.height - pattern.height * cellSize) / 2f + panOffset.y
                     if (cellSize <= 0f) return@detectTapGestures
                     val x = floor((offset.x - offsetX) / cellSize).toInt()
 val y = floor((offset.y - offsetY) / cellSize).toInt()
@@ -401,8 +401,8 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
     size.width / pattern.width,
     size.height / pattern.height
 ) * scale 
-        val offsetX = (size.width - pattern.width * cellSize) / 2f
-val offsetY = (size.height - pattern.height * cellSize) / 2f
+        val offsetX = (size.width - pattern.width * cellSize) / 2f + panOffset.x
+val offsetY = (size.height - pattern.height * cellSize) / 2f + panOffset.y
         val maxX = pattern.width
 val maxY = pattern.height
         
