@@ -54,6 +54,7 @@ fun StitchCraftApp() {
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var width by remember { mutableFloatStateOf(80f) }
     var colors by remember { mutableFloatStateOf(24f) }
+    var fabricCount by remember { mutableIntStateOf(14) }
     var cleanupSingles by remember { mutableStateOf(true) }
     var pattern by remember { mutableStateOf<StitchPattern?>(null) }
     var editingSession by remember { mutableIntStateOf(0) }
@@ -146,10 +147,11 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
 
             when (tab) {
                 0 -> CreateScreen(
-                    selectedUri, width, colors, cleanupSingles, isPro, busy,
+                    selectedUri, width, colors,fabricCount, cleanupSingles, isPro, busy,
                     onPick = { picker.launch("image/*") },
                     onWidth = { width = it },
                     onColors = { colors = it },
+                    onFabricCount = { fabricCount = it },
                     onCleanup = { cleanupSingles = it },
                     onGenerate = {
     val uri = selectedUri ?: return@CreateScreen
@@ -251,9 +253,19 @@ pngSaveLauncher.launch(f.name)
 
 @Composable
 fun CreateScreen(
-    uri: Uri?, width: Float, colors: Float, cleanupSingles: Boolean, isPro: Boolean, busy: Boolean,
-    onPick: () -> Unit, onWidth: (Float) -> Unit, onColors: (Float) -> Unit,
-    onCleanup: (Boolean) -> Unit, onGenerate: () -> Unit
+    uri: Uri?,
+    width: Float,
+    colors: Float,
+    fabricCount: Int,
+    cleanupSingles: Boolean,
+    isPro: Boolean,
+    busy: Boolean,
+    onPick: () -> Unit,
+    onWidth: (Float) -> Unit,
+    onColors: (Float) -> Unit,
+    onFabricCount: (Int) -> Unit,
+    onCleanup: (Boolean) -> Unit,
+    onGenerate: () -> Unit
 ) {
     Column(
         Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
@@ -269,6 +281,17 @@ fun CreateScreen(
         Slider(width, onValueChange = onWidth, valueRange = 20f..if (isPro) ReleaseConfig.PRO_MAX_WIDTH.toFloat() else ReleaseConfig.FREE_MAX_WIDTH.toFloat(), steps = 22)
         Text("Количество цветов: ${colors.toInt()}")
         Slider(colors, onValueChange = onColors, valueRange = 4f..if (isPro) ReleaseConfig.PRO_MAX_COLORS.toFloat() else ReleaseConfig.FREE_MAX_COLORS.toFloat(), steps = 12)
+        Text("Канва: Aida $fabricCount")
+
+Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    listOf(14, 16, 18).forEach { count ->
+        FilterChip(
+            selected = fabricCount == count,
+            onClick = { onFabricCount(count) },
+            label = { Text("$count ct") }
+        )
+    }
+}
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text("Упростить одиночные крестики")
