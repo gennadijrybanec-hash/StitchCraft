@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
 
 enum class EditTool { COLOR, ERASE, COMPLETE }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StitchCraftApp() {
     val context = LocalContext.current
