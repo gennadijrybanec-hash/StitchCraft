@@ -374,7 +374,10 @@ fun PatternCanvas(
             .background(Color.White)
             .pointerInput(pattern.width, pattern.height, scale) {
                 detectTapGestures { offset ->
-                    val cellSize = (size.width.toFloat() / pattern.width.toFloat()) * scale
+                    val cellSize = minOf(
+    size.width / pattern.width,
+    size.height / pattern.height
+) * scale
                     if (cellSize <= 0f) return@detectTapGestures
                     val x = floor(offset.x / cellSize).toInt()
                     val y = floor(offset.y / cellSize).toInt()
@@ -385,7 +388,10 @@ fun PatternCanvas(
                 detectTransformGestures { _, _, zoom, _ -> onZoom(zoom) }
             }
     ) {
-        val cellSize = (size.width / pattern.width) * scale
+       val cellSize = minOf(
+    size.width / pattern.width,
+    size.height / pattern.height
+) * scale 
         val maxX = minOf(pattern.width, (size.width / cellSize).toInt() + 1)
         val maxY = minOf(pattern.height, (size.height / cellSize).toInt() + 1)
         val textPaint = android.graphics.Paint().apply {
