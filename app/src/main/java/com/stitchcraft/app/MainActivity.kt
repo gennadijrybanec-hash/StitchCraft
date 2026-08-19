@@ -208,7 +208,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                         message = "Проект сохранён • прогресс ${p.progressPercent()}%"
                     },
                     onPdf = { p ->
-                        val f = ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
+                        val f = ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}", fabricCount)
                         pendingPdfFile = f
 pdfSaveLauncher.launch(f.name)
                     },
