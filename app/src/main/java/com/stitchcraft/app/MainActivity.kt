@@ -60,6 +60,22 @@ fun StitchCraftApp() {
     var activeProject by remember { mutableStateOf<SavedProject?>(null) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var pendingPngFile by remember { mutableStateOf<java.io.File?>(null) }
+
+val pngSaveLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.CreateDocument("image/png")
+) { uri ->
+    val file = pendingPngFile
+    if (uri != null && file != null) {
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            file.inputStream().use { input ->
+                input.copyTo(output)
+            }
+        }
+        message = "PNG сохранён"
+    }
+    pendingPngFile = null
+}
     var isPro by remember { mutableStateOf(context.getSharedPreferences("prefs", 0).getBoolean("pro", false)) }
     val store = remember { ProjectStore(context) }
     var projects by remember { mutableStateOf(store.list()) }
@@ -165,7 +181,8 @@ fun StitchCraftApp() {
                     },
                     onPng = { p ->
                         val f = ExportManager.exportPng(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
-                        message = "PNG создан: ${f.name}"
+                    pendingPngFile = f
+pngSaveLauncher.launch(f.name)
                     }
                 )
 
