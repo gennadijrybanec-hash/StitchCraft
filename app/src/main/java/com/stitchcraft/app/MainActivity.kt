@@ -198,6 +198,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                     pattern = pattern,
                     sessionId = editingSession,
                     isPro = isPro,
+                    fabricCount = fabricCount,
                     onPatternChange = { pattern = it },
                     onSave = { p ->
                         val existing = activeProject
@@ -313,6 +314,7 @@ fun PatternScreen(
     pattern: StitchPattern?,
     sessionId: Int,
     isPro: Boolean,
+    fabricCount: Int,
     onPatternChange: (StitchPattern) -> Unit,
     onSave: (StitchPattern) -> Unit,
     onPdf: (StitchPattern) -> Unit,
@@ -356,9 +358,17 @@ fun PatternScreen(
 
     val total = pattern.stitchCount()
     val done = pattern.completedCount()
+    val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
+val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
     Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("${pattern.width} × ${pattern.height} • ${pattern.palette.size} цветов", fontWeight = FontWeight.Bold)
+        Text(
+    "Канва Aida $fabricCount • %.1f × %.1f см".format(
+        finishedWidthCm,
+        finishedHeightCm
+    )
+)
         Text("Вышито: $done из $total • ${pattern.progressPercent()}%", style = MaterialTheme.typography.bodyMedium)
         LinearProgressIndicator(
             progress = { if (total == 0) 0f else done.toFloat() / total.toFloat() },
