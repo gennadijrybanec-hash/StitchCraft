@@ -399,8 +399,9 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
 ) * scale 
         val offsetX = (size.width - pattern.width * cellSize) / 2f
 val offsetY = (size.height - pattern.height * cellSize) / 2f
-        val maxX = minOf(pattern.width, (size.width / cellSize).toInt() + 1)
-        val maxY = minOf(pattern.height, (size.height / cellSize).toInt() + 1)
+        val maxX = pattern.width
+val maxY = pattern.height
+        
         val textPaint = android.graphics.Paint().apply {
             color = android.graphics.Color.BLACK
             isAntiAlias = true
