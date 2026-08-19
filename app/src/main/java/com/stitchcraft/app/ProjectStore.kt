@@ -13,7 +13,10 @@ data class SavedProject(
     val colors: Int,
     val createdAt: Long,
     val updatedAt: Long = createdAt,
-    val progress: Int = 0
+val progress: Int = 0,
+val fabricCount: Int = 18
+
+    
 )
 
 class ProjectStore(private val context: Context) {
@@ -35,13 +38,14 @@ class ProjectStore(private val context: Context) {
                     colors = o.getInt("colors"),
                     createdAt = created,
                     updatedAt = o.optLong("updatedAt", created),
-                    progress = o.optInt("progress", 0)
+                    progress = o.optInt("progress", 0),
+fabricCount = o.optInt("fabricCount", 18)
                 )
             }.sortedByDescending { it.updatedAt }
         }.getOrDefault(emptyList())
     }
 
-    fun save(name: String, pattern: StitchPattern, existingId: String? = null): SavedProject {
+    fun save(name: String, pattern: StitchPattern, existingId: String? = null, fabricCount: Int = 18): SavedProject {
         val now = System.currentTimeMillis()
         val previous = existingId?.let { id -> list().firstOrNull { it.id == id } }
         val id = previous?.id ?: "p_$now"
@@ -53,7 +57,8 @@ class ProjectStore(private val context: Context) {
             colors = pattern.palette.size,
             createdAt = previous?.createdAt ?: now,
             updatedAt = now,
-            progress = pattern.progressPercent()
+            progress = pattern.progressPercent(),
+fabricCount = fabricCount
         )
 
         val data = JSONObject()
@@ -112,6 +117,7 @@ class ProjectStore(private val context: Context) {
                     .put("createdAt", p.createdAt)
                     .put("updatedAt", p.updatedAt)
                     .put("progress", p.progress)
+                    .put("fabricCount", p.fabricCount)
             )
         }
         indexFile.writeText(arr.toString())
