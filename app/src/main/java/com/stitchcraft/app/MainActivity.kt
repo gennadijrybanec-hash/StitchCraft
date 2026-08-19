@@ -378,9 +378,12 @@ fun PatternCanvas(
     size.width / pattern.width,
     size.height / pattern.height
 ) * scale
+                    val offsetX = (size.width - pattern.width * cellSize) / 2f
+val offsetY = (size.height - pattern.height * cellSize) / 2f
                     if (cellSize <= 0f) return@detectTapGestures
-                    val x = floor(offset.x / cellSize).toInt()
-                    val y = floor(offset.y / cellSize).toInt()
+                    val x = floor((offset.x - offsetX) / cellSize).toInt()
+val y = floor((offset.y - offsetY) / cellSize).toInt()
+                    
                     if (x in 0 until pattern.width && y in 0 until pattern.height) onCellTap(x, y)
                 }
             }
@@ -392,6 +395,8 @@ fun PatternCanvas(
     size.width / pattern.width,
     size.height / pattern.height
 ) * scale 
+        val offsetX = (size.width - pattern.width * cellSize) / 2f
+val offsetY = (size.height - pattern.height * cellSize) / 2f
         val maxX = minOf(pattern.width, (size.width / cellSize).toInt() + 1)
         val maxY = minOf(pattern.height, (size.height / cellSize).toInt() + 1)
         val textPaint = android.graphics.Paint().apply {
@@ -401,8 +406,8 @@ fun PatternCanvas(
 
         for (y in 0 until maxY) for (x in 0 until maxX) {
             val pc = pattern.cell(x, y)
-            val left = x * cellSize
-            val top = y * cellSize
+            val left = offsetX + x * cellSize
+            val top = offsetY + y * cellSize
             val fill = if (pc.erased) Color.White else Color(pattern.palette[pc.colorIndex].rgb)
             drawRect(fill, Offset(left, top), androidx.compose.ui.geometry.Size(cellSize, cellSize))
 
