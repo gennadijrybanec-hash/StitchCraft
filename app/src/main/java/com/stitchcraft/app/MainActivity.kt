@@ -343,9 +343,9 @@ fun PatternScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(onClick = { onSave(pattern) }) { Text("Сохранить") }
-            Button(onClick = { onPdf(pattern) }, enabled = isPro) { Text("PDF") }
-            Button(onClick = { onCsv(pattern) }, enabled = isPro) { Text("CSV") }
-            Button(onClick = { onPng(pattern) }, enabled = isPro) { Text("PNG") }
+            Button(onClick = { onPdf(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PDF") }
+            Button(onClick = { onCsv(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("CSV") }
+            Button(onClick = { onPng(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PNG") }
         }
 
         Text("Палитра", fontWeight = FontWeight.Bold)
