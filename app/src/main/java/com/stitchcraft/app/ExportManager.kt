@@ -47,7 +47,7 @@ object ExportManager {
 
         for (y in startY until endY) {
             if ((y + 1) % 10 == 0) {
-                canvas.drawText("${y + 1}", 4f, top + (y - startY) * cell + cell * .72f, paint)
+                canvas.drawText("${y + 1}", 14f, top + (y - startY) * cell + cell * .72f, paint)
             }
         }
 
