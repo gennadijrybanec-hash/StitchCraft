@@ -203,7 +203,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                     onSave = { p ->
                         val existing = activeProject
                         val name = existing?.name ?: "Pattern_" + SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                        activeProject = store.save(name, p, existing?.id)
+                        activeProject = store.save(name, p, existing?.id, fabricCount)
                         projects = store.list()
                         message = "Проект сохранён • прогресс ${p.progressPercent()}%"
                     },
@@ -230,6 +230,7 @@ pngSaveLauncher.launch(f.name)
                         store.load(saved)?.let {
                             pattern = it
                             activeProject = saved
+                            fabricCount = saved.fabricCount
                             editingSession++
                             tab = 1
                         }
