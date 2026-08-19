@@ -35,6 +35,22 @@ object ExportManager {
     canvas.drawText("Cells X: ${startX + 1}–$endX, Y: ${startY + 1}–$endY", margin, 42f, paint)
             val cell = minOf((pageWidth - margin * 2) / (endX - startX), 640f / (endY - startY))
             val top = 54f
+                    paint.style = Paint.Style.FILL
+        paint.color = Color.BLACK
+        paint.textSize = 7f
+
+        for (x in startX until endX) {
+            if ((x + 1) % 10 == 0) {
+                canvas.drawText("${x + 1}", margin + (x - startX) * cell + 1f, top - 3f, paint)
+            }
+        }
+
+        for (y in startY until endY) {
+            if ((y + 1) % 10 == 0) {
+                canvas.drawText("${y + 1}", 4f, top + (y - startY) * cell + cell * .72f, paint)
+            }
+        }
+
             for (y in startY until endY) for (x in startX until endX) {
                 val left = margin + (x - startX) * cell; val t = top + (y - startY) * cell
                 paint.style = Paint.Style.STROKE; paint.strokeWidth = if (x % 10 == 0 || y % 10 == 0) 1.2f else .5f
