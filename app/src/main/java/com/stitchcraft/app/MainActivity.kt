@@ -370,6 +370,7 @@ fun PatternCanvas(
     onZoom: (Float) -> Unit,
     onCellTap: (Int, Int) -> Unit
 ) {
+    var panOffset by remember(pattern) { mutableStateOf(Offset.Zero) }
     Canvas(
         modifier
             .background(Color.White)
@@ -390,7 +391,10 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
                 }
             }
             .pointerInput(Unit) {
-                detectTransformGestures { _, _, zoom, _ -> onZoom(zoom) }
+                detectTransformGestures { _, pan, zoom, _ ->
+    panOffset += pan
+    onZoom(zoom)
+}
             }
     ) {
        val cellSize = minOf(
