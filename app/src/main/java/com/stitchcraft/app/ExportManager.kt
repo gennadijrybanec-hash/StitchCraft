@@ -21,17 +21,20 @@ object ExportManager {
         val cellsPerPage = 40
         val pagesX = (pattern.width + cellsPerPage - 1) / cellsPerPage
         val pagesY = (pattern.height + cellsPerPage - 1) / cellsPerPage
+        val totalPages = pagesX * pagesY
         var pageNo = 1
         for (py in 0 until pagesY) for (px in 0 until pagesX) {
             val info = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNo++).create()
             val page = pdf.startPage(info)
             val canvas = page.canvas
             paint.color = Color.BLACK; paint.textSize = 12f; paint.style = Paint.Style.FILL
-            canvas.drawText("StitchCraft — $projectName", margin, 24f, paint)
+            canvas.drawText("StitchCraft — $projectName — Page ${pageNo - 1}/$totalPages", margin, 24f, paint)
             val startX = px * cellsPerPage; val startY = py * cellsPerPage
             val endX = minOf(startX + cellsPerPage, pattern.width); val endY = minOf(startY + cellsPerPage, pattern.height)
+            paint.textSize = 9f
+    canvas.drawText("Cells X: ${startX + 1}–$endX, Y: ${startY + 1}–$endY", margin, 42f, paint)
             val cell = minOf((pageWidth - margin * 2) / (endX - startX), 640f / (endY - startY))
-            val top = 48f
+            val top = 54f
             for (y in startY until endY) for (x in startX until endX) {
                 val left = margin + (x - startX) * cell; val t = top + (y - startY) * cell
                 paint.style = Paint.Style.STROKE; paint.strokeWidth = if (x % 10 == 0 || y % 10 == 0) 1.2f else .5f
