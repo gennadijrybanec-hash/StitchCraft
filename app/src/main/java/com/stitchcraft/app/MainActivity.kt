@@ -488,6 +488,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
         PatternCanvas(
             pattern = pattern,
+            sessionId = sessionId,
             scale = scale,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             viewResetKey = viewResetKey,
@@ -541,6 +542,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 @Composable
 fun PatternCanvas(
     pattern: StitchPattern,
+    sessionId: Int,
     scale: Float,
     modifier: Modifier,
     viewResetKey: Int,
@@ -548,12 +550,17 @@ fun PatternCanvas(
     onZoom: (Float) -> Unit,
     onCellTap: (Int, Int) -> Unit
 ) {
-    var panOffset by remember(pattern, viewResetKey) { mutableStateOf(Offset.Zero) }
+    // Keep the viewport stable while cells are edited. The pattern object changes on every
+    // completed/erased/recolored cell, so keying panOffset by `pattern` would reset the view
+    // after every tap. Reset only when a new editing session starts or the user requests fit.
+    var panOffset by remember(sessionId, viewResetKey) { mutableStateOf(Offset.Zero) }
+    val currentOnCellTap by rememberUpdatedState(onCellTap)
+    val currentOnZoom by rememberUpdatedState(onZoom)
     Canvas(
         modifier
             .background(Color.White)
             .clipToBounds()
-            .pointerInput(pattern.width, pattern.height, scale) {
+            .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
                 detectTapGestures { offset ->
                     val cellSize = minOf(
     size.width / pattern.width,
@@ -565,10 +572,10 @@ val offsetY = (size.height - pattern.height * cellSize) / 2f + panOffset.y
                     val x = floor((offset.x - offsetX) / cellSize).toInt()
 val y = floor((offset.y - offsetY) / cellSize).toInt()
                     
-                    if (x in 0 until pattern.width && y in 0 until pattern.height) onCellTap(x, y)
+                    if (x in 0 until pattern.width && y in 0 until pattern.height) currentOnCellTap(x, y)
                 }
             }
-            .pointerInput(pattern.width, pattern.height, scale) {
+            .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     val cellSize = minOf(
                         size.width / pattern.width,
@@ -583,7 +590,7 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
                         nextPan.x.coerceIn(-maxPanX, maxPanX),
                         nextPan.y.coerceIn(-maxPanY, maxPanY)
                     )
-                    onZoom(zoom)
+                    currentOnZoom(zoom)
                 }
             }
     ) {

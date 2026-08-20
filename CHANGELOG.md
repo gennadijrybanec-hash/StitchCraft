@@ -1,3 +1,8 @@
+## v0.15.2
+- Fixed stale tap callback in PatternCanvas that caused only the latest completed stitch to remain.
+- Fixed pan offset resetting on every pattern edit, which made the visible check mark appear to jump.
+- Viewport now stays stable while marking stitches.
+
 # v0.12.0
 
 - Более отзывчивый pinch-to-zoom для схемы.
