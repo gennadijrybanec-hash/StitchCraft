@@ -169,8 +169,8 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                     }
                 }
 
-                val w = width.toInt().coerceAtMost(if (isPro) 300 else 120)
-                val c = colors.toInt().coerceAtMost(if (isPro) 100 else 32)
+                val w = width.toInt().coerceAtMost(if (isPro) ReleaseConfig.PRO_MAX_WIDTH else ReleaseConfig.FREE_MAX_WIDTH)
+                val c = colors.toInt().coerceAtMost(if (isPro) ReleaseConfig.PRO_MAX_COLORS else ReleaseConfig.FREE_MAX_COLORS)
 
                 PatternEngine.generate(
                     bmp,
@@ -302,7 +302,7 @@ Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
         }
         if (!isPro) {
-            Text("Free: до 80 крестиков по ширине и 16 цветов. Pro снимает ограничения и включает экспорт.", style = MaterialTheme.typography.bodySmall)
+            Text("Free: до ${ReleaseConfig.FREE_MAX_WIDTH} крестиков по ширине и ${ReleaseConfig.FREE_MAX_COLORS} цветов. Pro снимает ограничения и включает экспорт.", style = MaterialTheme.typography.bodySmall)
         }
         Button(onClick = onGenerate, enabled = uri != null && !busy, modifier = Modifier.fillMaxWidth()) {
             Text(if (busy) "Генерация…" else "Создать схему")
@@ -330,6 +330,7 @@ fun PatternScreen(
     var scale by remember(sessionId) { mutableFloatStateOf(1f) }
     var tool by remember(sessionId) { mutableStateOf(EditTool.COMPLETE) }
     var selectedColor by remember(sessionId) { mutableIntStateOf(0) }
+    var viewResetKey by remember(sessionId) { mutableIntStateOf(0) }
     val undo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
     val redo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
 
@@ -385,6 +386,9 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             FilterChip(selected = tool == EditTool.ERASE, onClick = { tool = EditTool.ERASE }, label = { Text("⌫ Ластик") })
             OutlinedButton(onClick = ::undoEdit, enabled = undo.isNotEmpty()) { Text("↶") }
             OutlinedButton(onClick = ::redoEdit, enabled = redo.isNotEmpty()) { Text("↷") }
+            OutlinedButton(onClick = { scale = (scale / 1.5f).coerceAtLeast(.6f) }) { Text("−") }
+            OutlinedButton(onClick = { scale = 1f; viewResetKey++ }) { Text("По размеру") }
+            OutlinedButton(onClick = { scale = (scale * 1.5f).coerceAtMost(8f) }) { Text("+") }
         }
 
         if (tool == EditTool.COLOR) {
@@ -406,6 +410,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             pattern = pattern,
             scale = scale,
             modifier = Modifier.weight(1f).fillMaxWidth(),
+            viewResetKey = viewResetKey,
             onZoom = { zoom -> scale = (scale * zoom).coerceIn(.6f, 8f) },
             onCellTap = { x, y ->
                 val cell = pattern.cell(x, y)
@@ -453,10 +458,11 @@ fun PatternCanvas(
     pattern: StitchPattern,
     scale: Float,
     modifier: Modifier,
+    viewResetKey: Int,
     onZoom: (Float) -> Unit,
     onCellTap: (Int, Int) -> Unit
 ) {
-    var panOffset by remember(pattern) { mutableStateOf(Offset.Zero) }
+    var panOffset by remember(pattern, viewResetKey) { mutableStateOf(Offset.Zero) }
     Canvas(
         modifier
             .background(Color.White)
@@ -493,8 +499,17 @@ val offsetY = (size.height - pattern.height * cellSize) / 2f + panOffset.y
 val maxY = pattern.height
         
         val textPaint = android.graphics.Paint().apply {
-            color = android.graphics.Color.BLACK
             isAntiAlias = true
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+
+        fun symbolColor(rgb: Int): Int {
+            val r = android.graphics.Color.red(rgb)
+            val g = android.graphics.Color.green(rgb)
+            val b = android.graphics.Color.blue(rgb)
+            val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+            return if (luminance < 145) android.graphics.Color.WHITE else android.graphics.Color.BLACK
         }
 
         for (y in 0 until maxY) for (x in 0 until maxX) {
@@ -511,12 +526,14 @@ val maxY = pattern.height
                     androidx.compose.ui.geometry.Size(cellSize, cellSize)
                 )
                 if (cellSize >= 10f) {
-                    textPaint.textSize = cellSize * .72f
-                    drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .16f, top + cellSize * .78f, textPaint)
+                    textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
+                    textPaint.textSize = cellSize * .68f
+                    drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .5f, top + cellSize * .74f, textPaint)
                 }
-            } else if (!pc.erased && cellSize >= 12f) {
-                textPaint.textSize = cellSize * .55f
-                drawContext.canvas.nativeCanvas.drawText(pc.symbol, left + cellSize * .22f, top + cellSize * .72f, textPaint)
+            } else if (!pc.erased && cellSize >= 11f) {
+                textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
+                textPaint.textSize = cellSize * .52f
+                drawContext.canvas.nativeCanvas.drawText(pc.symbol, left + cellSize * .5f, top + cellSize * .70f, textPaint)
             }
 
             drawRect(
@@ -560,7 +577,7 @@ fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(
             if (isPro) "Pro активирован ✓"
-            else "Большие схемы, до 60 цветов, экспорт PDF/CSV/PNG и профессиональные инструменты подготовки схем."
+            else "Большие схемы, до ${ReleaseConfig.PRO_MAX_COLORS} цветов, экспорт PDF/CSV/PNG и профессиональные инструменты подготовки схем."
         )
         if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text("Купить Pro") }
         OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text("Восстановить покупку") }

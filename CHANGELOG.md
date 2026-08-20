@@ -44,3 +44,11 @@
 - Undo/Redo.
 - Отметка вышитых крестиков и прогресс проекта.
 - Разбиение больших PDF-схем на печатные страницы с координатами и легендой.
+
+## 0.8.0
+- Improved chart editor readability: symbols automatically switch between black and white for contrast.
+- Centered and boldened chart symbols at useful zoom levels.
+- Added editor zoom controls: minus, plus, and "По размеру" to reset zoom/pan.
+- Unified Free/Pro limits shown in the UI with ReleaseConfig values.
+- Generation now uses the same Free/Pro limits as the UI.
+- Updated GitHub Actions checkout/setup-java to v5.
