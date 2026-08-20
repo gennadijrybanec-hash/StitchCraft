@@ -12,13 +12,27 @@ android {
         applicationId = "com.stitchcraft.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.8.0"
+        versionCode = 9
+        versionName = "0.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        create("stableDebug") {
+            // Test-only key committed so GitHub Actions debug APKs can update each other.
+            // Production releases MUST use a private release key stored outside the repository.
+            storeFile = file("stitchcraft-test-debug.keystore")
+            storePassword = "stitchcraft-test"
+            keyAlias = "stitchcraft-test"
+            keyPassword = "stitchcraft-test"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stableDebug")
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

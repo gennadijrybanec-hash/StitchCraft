@@ -386,9 +386,10 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             FilterChip(selected = tool == EditTool.ERASE, onClick = { tool = EditTool.ERASE }, label = { Text("⌫ Ластик") })
             OutlinedButton(onClick = ::undoEdit, enabled = undo.isNotEmpty()) { Text("↶") }
             OutlinedButton(onClick = ::redoEdit, enabled = redo.isNotEmpty()) { Text("↷") }
-            OutlinedButton(onClick = { scale = (scale / 1.5f).coerceAtLeast(.6f) }) { Text("−") }
+            OutlinedButton(onClick = { scale = (scale / 1.6f).coerceAtLeast(.6f) }) { Text("−") }
             OutlinedButton(onClick = { scale = 1f; viewResetKey++ }) { Text("По размеру") }
-            OutlinedButton(onClick = { scale = (scale * 1.5f).coerceAtMost(8f) }) { Text("+") }
+            OutlinedButton(onClick = { scale = (scale * 1.6f).coerceAtMost(20f) }) { Text("+") }
+            Text("${(scale * 100).toInt()}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 12.dp))
         }
 
         if (tool == EditTool.COLOR) {
@@ -411,7 +412,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             scale = scale,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             viewResetKey = viewResetKey,
-            onZoom = { zoom -> scale = (scale * zoom).coerceIn(.6f, 8f) },
+            onZoom = { zoom -> scale = (scale * zoom).coerceIn(.6f, 20f) },
             onCellTap = { x, y ->
                 val cell = pattern.cell(x, y)
                 val next = when (tool) {
@@ -482,11 +483,23 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
                     if (x in 0 until pattern.width && y in 0 until pattern.height) onCellTap(x, y)
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(pattern.width, pattern.height, scale) {
                 detectTransformGestures { _, pan, zoom, _ ->
-    panOffset += pan
-    onZoom(zoom)
-}
+                    val cellSize = minOf(
+                        size.width / pattern.width,
+                        size.height / pattern.height
+                    ) * scale
+                    val contentWidth = pattern.width * cellSize
+                    val contentHeight = pattern.height * cellSize
+                    val maxPanX = maxOf(0f, (contentWidth - size.width) / 2f) + size.width * .45f
+                    val maxPanY = maxOf(0f, (contentHeight - size.height) / 2f) + size.height * .45f
+                    val nextPan = panOffset + pan
+                    panOffset = Offset(
+                        nextPan.x.coerceIn(-maxPanX, maxPanX),
+                        nextPan.y.coerceIn(-maxPanY, maxPanY)
+                    )
+                    onZoom(zoom)
+                }
             }
     ) {
        val cellSize = minOf(
@@ -536,12 +549,37 @@ val maxY = pattern.height
                 drawContext.canvas.nativeCanvas.drawText(pc.symbol, left + cellSize * .5f, top + cellSize * .70f, textPaint)
             }
 
-            drawRect(
-                Color.Black.copy(alpha = .28f),
-                Offset(left, top),
-                androidx.compose.ui.geometry.Size(cellSize, cellSize),
-                style = Stroke(if (x % 10 == 0 || y % 10 == 0) 1.8f else .5f)
-            )
+            if (cellSize >= 2.5f) {
+                drawRect(
+                    Color.Black.copy(alpha = .24f),
+                    Offset(left, top),
+                    androidx.compose.ui.geometry.Size(cellSize, cellSize),
+                    style = Stroke(if (cellSize >= 10f) .65f else .4f)
+                )
+            }
+        }
+
+        // Bold 10×10 guide lines make large patterns easier to count while stitching.
+        if (cellSize >= 4f) {
+            val guideWidth = if (cellSize >= 14f) 2.4f else 1.7f
+            for (x in 0..pattern.width step 10) {
+                val lineX = offsetX + x * cellSize
+                drawLine(
+                    Color.Black.copy(alpha = .62f),
+                    Offset(lineX, offsetY),
+                    Offset(lineX, offsetY + pattern.height * cellSize),
+                    strokeWidth = guideWidth
+                )
+            }
+            for (y in 0..pattern.height step 10) {
+                val lineY = offsetY + y * cellSize
+                drawLine(
+                    Color.Black.copy(alpha = .62f),
+                    Offset(offsetX, lineY),
+                    Offset(offsetX + pattern.width * cellSize, lineY),
+                    strokeWidth = guideWidth
+                )
+            }
         }
     }
 }

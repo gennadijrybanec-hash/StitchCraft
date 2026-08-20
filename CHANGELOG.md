@@ -52,3 +52,10 @@
 - Unified Free/Pro limits shown in the UI with ReleaseConfig values.
 - Generation now uses the same Free/Pro limits as the UI.
 - Updated GitHub Actions checkout/setup-java to v5.
+
+## 0.9.0
+- Increased editor zoom limit to 20x.
+- Added visible zoom percentage and stronger 10x10 guide grid.
+- Added bounded panning for enlarged patterns.
+- Added a stable test-only debug signing key for reproducible GitHub Actions updates.
+- Bumped Android versionCode/versionName to 9 / 0.9.0.
