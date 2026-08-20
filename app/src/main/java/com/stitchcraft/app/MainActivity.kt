@@ -175,10 +175,14 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
         }
     }
     val billing = remember {
-        BillingManager(context) { pro ->
-            isPro = pro
-            context.getSharedPreferences("prefs", 0).edit().putBoolean("pro", pro).apply()
-        }
+        BillingManager(
+            context = context,
+            onProChanged = { pro ->
+                isPro = pro
+                context.getSharedPreferences("prefs", 0).edit().putBoolean("pro", pro).apply()
+            },
+            onMessage = { message = it }
+        )
     }
     DisposableEffect(Unit) { billing.start(); onDispose { billing.stop() } }
 
@@ -815,6 +819,6 @@ fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
         }
         if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text("Получить StitchCraft Pro") }
         OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text("Восстановить покупку") }
-        Text("Покупка Pro будет подключена через Google Play. До публикации тестовая сборка может использовать тестовый режим покупки.", style = MaterialTheme.typography.bodySmall)
+        Text("Разовая покупка Pro через Google Play. После покупки доступ можно восстановить на другом устройстве с тем же аккаунтом Google.", style = MaterialTheme.typography.bodySmall)
     }
 }
