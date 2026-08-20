@@ -121,8 +121,14 @@ fabricCount = fabricCount
         val height = data.getInt("height")
         val palette = data.getJSONArray("palette")
         val cells = data.getJSONArray("cells")
-        require(width > 0 && height > 0 && palette.length() > 0)
+        require(width in 1..ReleaseConfig.PRO_MAX_WIDTH && height in 1..ReleaseConfig.PRO_MAX_HEIGHT)
+        require(palette.length() in 1..ReleaseConfig.PRO_MAX_COLORS)
         require(cells.length() == width * height)
+        for (i in 0 until cells.length()) {
+            require(cells.getInt(i) in 0 until palette.length())
+        }
+        data.optJSONArray("completed")?.let { require(it.length() == cells.length()) }
+        data.optJSONArray("erased")?.let { require(it.length() == cells.length()) }
 
         val now = System.currentTimeMillis()
         val id = "p_${now}_${(1000..9999).random()}"

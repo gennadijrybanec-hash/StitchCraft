@@ -79,3 +79,12 @@
 ## 0.14.0
 - Portable project export/import (.stitchcraft).
 - Stronger persistent completed-stitch visualization.
+
+## 1.0.0-rc1
+- Комплексный предрелизный аудит на базе v0.15.2.
+- Исправлены лимиты цветов Pro и защита генератора.
+- Усилена работа с большими изображениями и PNG.
+- PDF получил полную легенду палитры.
+- Усилена валидация `.stitchcraft`.
+- Улучшено открытие проекта из Android.
+- Добавлены иконка, unit-тесты и lint в CI.

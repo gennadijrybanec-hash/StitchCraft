@@ -125,7 +125,7 @@ object PatternEngine {
         options: PatternOptions = PatternOptions()
     ): StitchPattern {
         require(targetWidth in 10..300)
-        require(maxColors in 2..symbols.size)
+        val effectiveMaxColors = maxColors.coerceIn(2, minOf(symbols.size, ThreadPalette.dmcApprox.size))
         val aspect = bitmap.height.toDouble() / bitmap.width.toDouble()
         val targetHeight = (targetWidth * aspect).roundToInt().coerceIn(10, 300)
         // Downsample in two stages. Rendering first to 2× and then averaging 2×2 pixels
@@ -133,7 +133,7 @@ object PatternEngine {
         // direct resize to the stitch grid.
         val pixels = downsampleForStitches(bitmap, targetWidth, targetHeight)
 
-        val candidatePalette = selectPalette(pixels, maxColors)
+        val candidatePalette = selectPalette(pixels, effectiveMaxColors)
         val labs = candidatePalette.map { paletteLabs.getValue(it) }
         var indices = IntArray(pixels.size) { i -> nearestLab(rgbToLab(pixels[i]), labs) }
         if (options.cleanupIsolatedStitches) {

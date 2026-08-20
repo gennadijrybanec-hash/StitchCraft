@@ -4,6 +4,7 @@ import android.app.Activity
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -41,7 +42,36 @@ import androidx.compose.runtime.rememberCoroutineScope
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme(colorScheme = lightColorScheme()) { StitchCraftApp(initialImportUri = if (intent?.action == android.content.Intent.ACTION_VIEW) intent?.data else null) } }
+        setContent {
+            MaterialTheme(colorScheme = lightColorScheme()) {
+                StitchCraftApp(initialImportUri = if (intent?.action == Intent.ACTION_VIEW) intent?.data else null)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        // Recreate only for an externally opened StitchCraft project so the incoming URI is
+        // consumed by the same import path as a cold start.
+        if (intent.action == Intent.ACTION_VIEW && intent.data != null) recreate()
+    }
+}
+
+private fun decodeBitmapForPattern(context: android.content.Context, uri: Uri, maxSide: Int = 2048): android.graphics.Bitmap {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri).use { input ->
+        requireNotNull(input) { "Не удалось открыть изображение" }
+        BitmapFactory.decodeStream(input, null, bounds)
+    }
+    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Не удалось прочитать размер изображения" }
+
+    var sample = 1
+    while (bounds.outWidth / sample > maxSide * 2 || bounds.outHeight / sample > maxSide * 2) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return context.contentResolver.openInputStream(uri).use { input ->
+        requireNotNull(input) { "Не удалось открыть изображение" }
+        requireNotNull(BitmapFactory.decodeStream(input, null, options)) { "Не удалось декодировать изображение" }
     }
 }
 
@@ -150,7 +180,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             context.getSharedPreferences("prefs", 0).edit().putBoolean("pro", pro).apply()
         }
     }
-    DisposableEffect(Unit) { billing.start(); onDispose { } }
+    DisposableEffect(Unit) { billing.start(); onDispose { billing.stop() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri
@@ -235,7 +265,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             tab = 1
 
         } catch (e: Exception) {
-            message = "Не удалось обработать изображение"
+            message = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось обработать изображение"
         } finally {
             busy = false
         }

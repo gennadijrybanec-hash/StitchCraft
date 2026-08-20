@@ -59,4 +59,8 @@ class BillingManager(
             onProChanged(purchases.orEmpty().any { it.products.contains(PRO_PRODUCT_ID) && it.purchaseState == Purchase.PurchaseState.PURCHASED })
         }
     }
+    fun stop() {
+        if (client.isReady) client.endConnection()
+    }
+
 }

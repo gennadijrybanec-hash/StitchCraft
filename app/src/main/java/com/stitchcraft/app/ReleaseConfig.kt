@@ -15,5 +15,5 @@ object ReleaseConfig {
 
     const val PRO_MAX_WIDTH = 300
     const val PRO_MAX_HEIGHT = 300
-    const val PRO_MAX_COLORS = 200
+    const val PRO_MAX_COLORS = 60
 }
