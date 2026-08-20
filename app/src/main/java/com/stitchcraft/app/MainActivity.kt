@@ -114,6 +114,36 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
     var isPro by remember { mutableStateOf(context.getSharedPreferences("prefs", 0).getBoolean("pro", false)) }
     val store = remember { ProjectStore(context) }
     var projects by remember { mutableStateOf(store.list()) }
+    var pendingProjectExport by remember { mutableStateOf<SavedProject?>(null) }
+
+    val projectExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val project = pendingProjectExport
+        if (uri != null && project != null) {
+            val bytes = store.exportProject(project)
+            if (bytes != null) {
+                runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
+                    .onSuccess { message = "Проект экспортирован" }
+                    .onFailure { message = "Не удалось экспортировать проект" }
+            } else message = "Не удалось экспортировать проект"
+        }
+        pendingProjectExport = null
+    }
+
+    val projectImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val imported = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { store.importProject(it.readBytes()) }
+            }.getOrNull()
+            if (imported != null) {
+                projects = store.list()
+                message = "Проект «${imported.name}» импортирован"
+            } else message = "Файл не является проектом StitchCraft"
+        }
+    }
     val billing = remember {
         BillingManager(context) { pro ->
             isPro = pro
@@ -245,7 +275,13 @@ pngSaveLauncher.launch(f.name)
                         store.delete(saved)
                         if (activeProject?.id == saved.id) activeProject = null
                         projects = store.list()
-                    }
+                    },
+                    onExport = { saved ->
+                        pendingProjectExport = saved
+                        val safeName = saved.name.replace(Regex("[^A-Za-zА-Яа-я0-9._ -]"), "_").ifBlank { "StitchCraft_project" }
+                        projectExportLauncher.launch("$safeName.stitchcraft")
+                    },
+                    onImport = { projectImportLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) }
                 )
 
                 3 -> ProScreen(
@@ -567,13 +603,13 @@ val maxY = pattern.height
 
             if (pc.completed && !pc.erased) {
                 drawRect(
-                    Color.Black.copy(alpha = .18f),
+                    Color(0xFF2E7D32).copy(alpha = .28f),
                     Offset(left, top),
                     androidx.compose.ui.geometry.Size(cellSize, cellSize)
                 )
                 if (cellSize >= 10f) {
                     textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
-                    textPaint.textSize = cellSize * .68f
+                    textPaint.textSize = cellSize * .72f
                     drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .5f, top + cellSize * .74f, textPaint)
                 }
             } else if (!pc.erased && cellSize >= 11f && isFocused) {
@@ -622,14 +658,19 @@ fun ProjectsScreen(
     projects: List<SavedProject>,
     onOpen: (SavedProject) -> Unit,
     onRename: (SavedProject, String) -> Unit,
-    onDelete: (SavedProject) -> Unit
+    onDelete: (SavedProject) -> Unit,
+    onExport: (SavedProject) -> Unit,
+    onImport: () -> Unit
 ) {
     var renameTarget by remember { mutableStateOf<SavedProject?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SavedProject?>(null) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            OutlinedButton(onClick = onImport) { Text("Импорт") }
+        }
         if (projects.isEmpty()) Text("Пока нет проектов.", Modifier.padding(top = 16.dp))
         LazyColumn {
             itemsIndexed(projects) { _, p ->
@@ -640,6 +681,7 @@ fun ProjectsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { onOpen(p) }) { Text("Открыть") }
                             TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text("Переименовать") }
+                            TextButton(onClick = { onExport(p) }) { Text("Экспорт") }
                             TextButton(onClick = { deleteTarget = p }) { Text("Удалить") }
                         }
                     }

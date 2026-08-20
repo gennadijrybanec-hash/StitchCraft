@@ -99,6 +99,54 @@ fabricCount = fabricCount
         StitchPattern(o.getInt("width"), o.getInt("height"), palette, cells)
     }.getOrNull()
 
+
+    fun exportProject(project: SavedProject): ByteArray? = runCatching {
+        val patternFile = File(patternsDir, "${project.id}.json")
+        require(patternFile.exists())
+        val root = JSONObject()
+            .put("format", "stitchcraft-project")
+            .put("formatVersion", 1)
+            .put("name", project.name)
+            .put("fabricCount", project.fabricCount)
+            .put("pattern", JSONObject(patternFile.readText()))
+        root.toString().toByteArray(Charsets.UTF_8)
+    }.getOrNull()
+
+    fun importProject(bytes: ByteArray): SavedProject? = runCatching {
+        val root = JSONObject(bytes.toString(Charsets.UTF_8))
+        require(root.optString("format") == "stitchcraft-project")
+        require(root.optInt("formatVersion", 0) == 1)
+        val data = root.getJSONObject("pattern")
+        val width = data.getInt("width")
+        val height = data.getInt("height")
+        val palette = data.getJSONArray("palette")
+        val cells = data.getJSONArray("cells")
+        require(width > 0 && height > 0 && palette.length() > 0)
+        require(cells.length() == width * height)
+
+        val now = System.currentTimeMillis()
+        val id = "p_${now}_${(1000..9999).random()}"
+        val name = root.optString("name", "Импортированный проект").trim().ifBlank { "Импортированный проект" }.take(60)
+        val fabric = root.optInt("fabricCount", 14).coerceIn(6, 40)
+        File(patternsDir, "$id.json").writeText(data.toString())
+
+        val completed = data.optJSONArray("completed")
+        val erased = data.optJSONArray("erased")
+        var total = 0
+        var done = 0
+        for (i in 0 until cells.length()) {
+            val isErased = erased?.optBoolean(i, false) ?: false
+            if (!isErased) {
+                total++
+                if (completed?.optBoolean(i, false) == true) done++
+            }
+        }
+        val progress = if (total == 0) 0 else kotlin.math.round(done * 100.0 / total).toInt()
+        val project = SavedProject(id, name, width, height, palette.length(), now, now, progress, fabric)
+        writeIndex((list() + project).sortedByDescending { it.updatedAt }.take(50))
+        project
+    }.getOrNull()
+
     fun rename(project: SavedProject, newName: String): SavedProject? {
         val cleanName = newName.trim()
         if (cleanName.isBlank()) return null
