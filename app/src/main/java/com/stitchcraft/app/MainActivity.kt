@@ -169,8 +169,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             projects = store.list()
             val loaded = store.load(imported)
             if (loaded != null) {
-                pattern = loaded.first
-                fabricCount = loaded.second
+                pattern = loaded
                 activeProject = imported
                 editingSession++
                 tab = 1
