@@ -330,6 +330,7 @@ fun PatternScreen(
     var scale by remember(sessionId) { mutableFloatStateOf(1f) }
     var tool by remember(sessionId) { mutableStateOf(EditTool.COMPLETE) }
     var selectedColor by remember(sessionId) { mutableIntStateOf(0) }
+    var focusColor by remember(sessionId) { mutableIntStateOf(-1) }
     var viewResetKey by remember(sessionId) { mutableIntStateOf(0) }
     val undo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
     val redo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
@@ -407,11 +408,30 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             }
         }
 
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            FilterChip(
+                selected = focusColor < 0,
+                onClick = { focusColor = -1 },
+                label = { Text("Все цвета") }
+            )
+            pattern.palette.forEachIndexed { index, thread ->
+                FilterChip(
+                    selected = focusColor == index,
+                    onClick = { focusColor = if (focusColor == index) -1 else index },
+                    label = { Text("${PatternEngine.symbolForIndex(index)} ${thread.code}") }
+                )
+            }
+        }
+
         PatternCanvas(
             pattern = pattern,
             scale = scale,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             viewResetKey = viewResetKey,
+            focusColor = focusColor,
             onZoom = { zoom -> scale = (scale * zoom).coerceIn(.6f, 20f) },
             onCellTap = { x, y ->
                 val cell = pattern.cell(x, y)
@@ -460,6 +480,7 @@ fun PatternCanvas(
     scale: Float,
     modifier: Modifier,
     viewResetKey: Int,
+    focusColor: Int,
     onZoom: (Float) -> Unit,
     onCellTap: (Int, Int) -> Unit
 ) {
@@ -529,7 +550,9 @@ val maxY = pattern.height
             val pc = pattern.cell(x, y)
             val left = offsetX + x * cellSize
             val top = offsetY + y * cellSize
-            val fill = if (pc.erased) Color.White else Color(pattern.palette[pc.colorIndex].rgb)
+            val baseFill = if (pc.erased) Color.White else Color(pattern.palette[pc.colorIndex].rgb)
+            val isFocused = focusColor < 0 || pc.colorIndex == focusColor
+            val fill = if (isFocused || pc.erased) baseFill else baseFill.copy(alpha = .16f)
             drawRect(fill, Offset(left, top), androidx.compose.ui.geometry.Size(cellSize, cellSize))
 
             if (pc.completed && !pc.erased) {
@@ -543,7 +566,7 @@ val maxY = pattern.height
                     textPaint.textSize = cellSize * .68f
                     drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .5f, top + cellSize * .74f, textPaint)
                 }
-            } else if (!pc.erased && cellSize >= 11f) {
+            } else if (!pc.erased && cellSize >= 11f && isFocused) {
                 textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
                 textPaint.textSize = cellSize * .52f
                 drawContext.canvas.nativeCanvas.drawText(pc.symbol, left + cellSize * .5f, top + cellSize * .70f, textPaint)
