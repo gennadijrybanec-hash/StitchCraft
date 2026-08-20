@@ -22,12 +22,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" android:mimeType="application/vnd.stitchcraft.project+json" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" android:mimeType="*/*" android:pathPattern=".*\\.stitchcraft" />
-            </intent-filter>
         </activity>
     </application>
 </manifest>

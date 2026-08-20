@@ -93,3 +93,9 @@
 - Brand launcher icon and splash branding.
 - Responsive project action row for portrait screens.
 - Refined Pro presentation.
+
+## 1.0.0-rc3
+- Fixed launcher icon backing/white-frame issue by using opaque branded launcher assets.
+- Removed overly broad file VIEW handler that could intercept APK/open-with flows.
+- Preserved custom StitchCraft MIME association and in-app project import.
+- Updated RC artifact naming and release notes.
