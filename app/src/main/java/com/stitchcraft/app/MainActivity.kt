@@ -41,7 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme(colorScheme = lightColorScheme()) { StitchCraftApp() } }
+        setContent { MaterialTheme(colorScheme = lightColorScheme()) { StitchCraftApp(initialImportUri = if (intent?.action == android.content.Intent.ACTION_VIEW) intent?.data else null) } }
     }
 }
 
@@ -49,7 +49,7 @@ enum class EditTool { COLOR, ERASE, COMPLETE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StitchCraftApp() {
+fun StitchCraftApp(initialImportUri: Uri? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
@@ -117,7 +117,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
     var pendingProjectExport by remember { mutableStateOf<SavedProject?>(null) }
 
     val projectExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument("application/vnd.stitchcraft.project+json")
     ) { uri ->
         val project = pendingProjectExport
         if (uri != null && project != null) {
@@ -159,6 +159,25 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
         editingSession++
     }
     var tab by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(initialImportUri) {
+        val uri = initialImportUri ?: return@LaunchedEffect
+        val imported = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { store.importProject(it.readBytes()) }
+        }.getOrNull()
+        if (imported != null) {
+            projects = store.list()
+            val loaded = store.load(imported)
+            if (loaded != null) {
+                pattern = loaded.first
+                fabricCount = loaded.second
+                activeProject = imported
+                editingSession++
+                tab = 1
+                message = "Проект «${imported.name}» открыт"
+            }
+        } else message = "Файл не является проектом StitchCraft"
+    }
 
     Scaffold(
         topBar = {
@@ -281,7 +300,7 @@ pngSaveLauncher.launch(f.name)
                         val safeName = saved.name.replace(Regex("[^A-Za-zА-Яа-я0-9._ -]"), "_").ifBlank { "StitchCraft_project" }
                         projectExportLauncher.launch("$safeName.stitchcraft")
                     },
-                    onImport = { projectImportLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) }
+                    onImport = { projectImportLauncher.launch(arrayOf("application/vnd.stitchcraft.project+json", "application/json", "application/octet-stream", "text/plain", "*/*")) }
                 )
 
                 3 -> ProScreen(
@@ -602,15 +621,27 @@ val maxY = pattern.height
             drawRect(fill, Offset(left, top), androidx.compose.ui.geometry.Size(cellSize, cellSize))
 
             if (pc.completed && !pc.erased) {
+                // A completed stitch must remain unmistakably visible after tapping other cells.
                 drawRect(
-                    Color(0xFF2E7D32).copy(alpha = .28f),
+                    Color(0xFF2E7D32).copy(alpha = .42f),
                     Offset(left, top),
                     androidx.compose.ui.geometry.Size(cellSize, cellSize)
                 )
-                if (cellSize >= 10f) {
-                    textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
+                if (cellSize >= 6f) {
+                    val inset = (cellSize * .08f).coerceAtLeast(1f)
+                    drawRect(
+                        Color(0xFF0B6B2B),
+                        Offset(left + inset, top + inset),
+                        androidx.compose.ui.geometry.Size(cellSize - inset * 2, cellSize - inset * 2),
+                        style = Stroke((cellSize * .08f).coerceIn(1.2f, 4f))
+                    )
+                }
+                if (cellSize >= 8f) {
+                    textPaint.color = android.graphics.Color.WHITE
+                    textPaint.setShadowLayer((cellSize * .08f).coerceAtLeast(1f), 0f, 0f, android.graphics.Color.BLACK)
                     textPaint.textSize = cellSize * .72f
                     drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .5f, top + cellSize * .74f, textPaint)
+                    textPaint.clearShadowLayer()
                 }
             } else if (!pc.erased && cellSize >= 11f && isFocused) {
                 textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
