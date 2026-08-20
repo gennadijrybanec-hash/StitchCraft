@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.floor
+import kotlin.math.pow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -387,9 +388,9 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             FilterChip(selected = tool == EditTool.ERASE, onClick = { tool = EditTool.ERASE }, label = { Text("⌫ Ластик") })
             OutlinedButton(onClick = ::undoEdit, enabled = undo.isNotEmpty()) { Text("↶") }
             OutlinedButton(onClick = ::redoEdit, enabled = redo.isNotEmpty()) { Text("↷") }
-            OutlinedButton(onClick = { scale = (scale / 1.6f).coerceAtLeast(.6f) }) { Text("−") }
+            OutlinedButton(onClick = { scale = (scale / 2f).coerceAtLeast(.6f) }) { Text("−") }
             OutlinedButton(onClick = { scale = 1f; viewResetKey++ }) { Text("По размеру") }
-            OutlinedButton(onClick = { scale = (scale * 1.6f).coerceAtMost(20f) }) { Text("+") }
+            OutlinedButton(onClick = { scale = (scale * 2f).coerceAtMost(20f) }) { Text("+") }
             Text("${(scale * 100).toInt()}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 12.dp))
         }
 
@@ -432,7 +433,11 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             modifier = Modifier.weight(1f).fillMaxWidth(),
             viewResetKey = viewResetKey,
             focusColor = focusColor,
-            onZoom = { zoom -> scale = (scale * zoom).coerceIn(.6f, 20f) },
+            onZoom = { zoom ->
+                // Make pinch zoom responsive enough for large embroidery charts.
+                val acceleratedZoom = zoom.toDouble().pow(1.8).toFloat()
+                scale = (scale * acceleratedZoom).coerceIn(.6f, 20f)
+            },
             onCellTap = { x, y ->
                 val cell = pattern.cell(x, y)
                 val next = when (tool) {
