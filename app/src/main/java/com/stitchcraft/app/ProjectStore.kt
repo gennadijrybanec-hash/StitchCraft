@@ -99,6 +99,16 @@ fabricCount = fabricCount
         StitchPattern(o.getInt("width"), o.getInt("height"), palette, cells)
     }.getOrNull()
 
+    fun rename(project: SavedProject, newName: String): SavedProject? {
+        val cleanName = newName.trim()
+        if (cleanName.isBlank()) return null
+        val all = list()
+        val current = all.firstOrNull { it.id == project.id } ?: return null
+        val renamed = current.copy(name = cleanName, updatedAt = System.currentTimeMillis())
+        writeIndex((all.filterNot { it.id == project.id } + renamed).sortedByDescending { it.updatedAt })
+        return renamed
+    }
+
     fun delete(project: SavedProject) {
         File(patternsDir, "${project.id}.json").delete()
         writeIndex(list().filterNot { it.id == project.id })

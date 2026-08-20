@@ -236,6 +236,11 @@ pngSaveLauncher.launch(f.name)
                             tab = 1
                         }
                     },
+                    onRename = { saved, newName ->
+                        val renamed = store.rename(saved, newName)
+                        if (renamed != null && activeProject?.id == saved.id) activeProject = renamed
+                        projects = store.list()
+                    },
                     onDelete = { saved ->
                         store.delete(saved)
                         if (activeProject?.id == saved.id) activeProject = null
@@ -613,7 +618,16 @@ val maxY = pattern.height
 }
 
 @Composable
-fun ProjectsScreen(projects: List<SavedProject>, onOpen: (SavedProject) -> Unit, onDelete: (SavedProject) -> Unit) {
+fun ProjectsScreen(
+    projects: List<SavedProject>,
+    onOpen: (SavedProject) -> Unit,
+    onRename: (SavedProject, String) -> Unit,
+    onDelete: (SavedProject) -> Unit
+) {
+    var renameTarget by remember { mutableStateOf<SavedProject?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<SavedProject?>(null) }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         if (projects.isEmpty()) Text("Пока нет проектов.", Modifier.padding(top = 16.dp))
@@ -622,15 +636,50 @@ fun ProjectsScreen(projects: List<SavedProject>, onOpen: (SavedProject) -> Unit,
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(p.name, fontWeight = FontWeight.Bold)
-                        Text("${p.width}×${p.height} • ${p.colors} цветов • ${p.progress}% готово")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("${p.width}×${p.height} • ${p.colors} цветов • Aida ${p.fabricCount} • ${p.progress}% готово")
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { onOpen(p) }) { Text("Открыть") }
-                            TextButton(onClick = { onDelete(p) }) { Text("Удалить") }
+                            TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text("Переименовать") }
+                            TextButton(onClick = { deleteTarget = p }) { Text("Удалить") }
                         }
                     }
                 }
             }
         }
+    }
+
+    renameTarget?.let { project ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Переименовать проект") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it.take(60) },
+                    label = { Text("Название") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = renameText.isNotBlank(),
+                    onClick = { onRename(project, renameText); renameTarget = null }
+                ) { Text("Сохранить") }
+            },
+            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Отмена") } }
+        )
+    }
+
+    deleteTarget?.let { project ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Удалить проект?") },
+            text = { Text("Проект «${project.name}» и сохранённый прогресс будут удалены без возможности восстановления.") },
+            confirmButton = {
+                TextButton(onClick = { onDelete(project); deleteTarget = null }) { Text("Удалить") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Отмена") } }
+        )
     }
 }
 
