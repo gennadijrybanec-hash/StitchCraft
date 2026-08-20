@@ -128,17 +128,51 @@ object PatternEngine {
         require(maxColors in 2..symbols.size)
         val aspect = bitmap.height.toDouble() / bitmap.width.toDouble()
         val targetHeight = (targetWidth * aspect).roundToInt().coerceIn(10, 300)
-        val scaled = Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
-        val pixels = IntArray(targetWidth * targetHeight)
-        scaled.getPixels(pixels, 0, targetWidth, 0, 0, targetWidth, targetHeight)
+        // Downsample in two stages. Rendering first to 2× and then averaging 2×2 pixels
+        // suppresses single-pixel photo noise while keeping edges noticeably cleaner than a
+        // direct resize to the stitch grid.
+        val pixels = downsampleForStitches(bitmap, targetWidth, targetHeight)
 
         val candidatePalette = selectPalette(pixels, maxColors)
         val labs = candidatePalette.map { paletteLabs.getValue(it) }
         var indices = IntArray(pixels.size) { i -> nearestLab(rgbToLab(pixels[i]), labs) }
         if (options.cleanupIsolatedStitches) {
-            indices = cleanupIsolated(indices, targetWidth, targetHeight, pixels, labs)
+            // Two conservative passes remove isolated speckles without aggressively blurring
+            // boundaries. The second pass only sees changes accepted by the first pass.
+            repeat(2) {
+                indices = cleanupIsolated(indices, targetWidth, targetHeight, pixels, labs)
+            }
         }
         return compactPattern(targetWidth, targetHeight, candidatePalette, indices)
+    }
+
+
+    private fun downsampleForStitches(bitmap: Bitmap, width: Int, height: Int): IntArray {
+        val workWidth = (width * 2).coerceAtMost(bitmap.width.coerceAtLeast(width))
+        val workHeight = (height * 2).coerceAtMost(bitmap.height.coerceAtLeast(height))
+        val work = Bitmap.createScaledBitmap(bitmap, workWidth, workHeight, true)
+
+        // If the source is already close to the requested grid, Android's filtered resize is
+        // the safer choice and avoids manufacturing detail that is not present in the source.
+        if (workWidth < width * 2 || workHeight < height * 2) {
+            val scaled = Bitmap.createScaledBitmap(work, width, height, true)
+            return IntArray(width * height).also {
+                scaled.getPixels(it, 0, width, 0, 0, width, height)
+            }
+        }
+
+        val src = IntArray(workWidth * workHeight)
+        work.getPixels(src, 0, workWidth, 0, 0, workWidth, workHeight)
+        val out = IntArray(width * height)
+        for (y in 0 until height) for (x in 0 until width) {
+            var r = 0; var g = 0; var b = 0
+            for (dy in 0..1) for (dx in 0..1) {
+                val c = src[(y * 2 + dy) * workWidth + (x * 2 + dx)]
+                r += Color.red(c); g += Color.green(c); b += Color.blue(c)
+            }
+            out[y * width + x] = Color.rgb(r / 4, g / 4, b / 4)
+        }
+        return out
     }
 
     private fun selectPalette(pixels: IntArray, maxColors: Int): List<ThreadColor> {
@@ -185,15 +219,23 @@ object PatternEngine {
                 val nx = x + dx; val ny = y + dy
                 if (nx in 0 until width && ny in 0 until height) neighbors += source[ny * width + nx]
             }
-            if (neighbors.count { it == current } >= 2) continue
+            val sameCount = neighbors.count { it == current }
+            if (sameCount >= 2) continue
             val dominant = neighbors.groupingBy { it }.eachCount().maxByOrNull { it.value } ?: continue
-            if (dominant.value < 3 || dominant.key == current) continue
+            if (dominant.key == current) continue
 
-            // Only simplify when the replacement is still a plausible visual match.
+            // A true isolated speck needs a clear local majority. If one matching neighbour
+            // exists, demand an even stronger majority so thin intentional details survive.
+            val requiredMajority = if (sameCount == 0) 4 else 5
+            if (dominant.value < requiredMajority) continue
+
+            // Only simplify when the replacement is still a plausible perceptual match.
+            // CIEDE2000 keeps this much safer than comparing raw RGB distances.
             val pxLab = rgbToLab(pixels[pos])
             val oldD = cieDe2000(pxLab, paletteLabs[current])
             val newD = cieDe2000(pxLab, paletteLabs[dominant.key])
-            if (newD <= oldD + 5.0) out[pos] = dominant.key
+            val tolerance = if (sameCount == 0) 4.0 else 2.5
+            if (newD <= oldD + tolerance) out[pos] = dominant.key
         }
         return out
     }

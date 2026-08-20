@@ -1,3 +1,8 @@
+
+## v0.11
+- Cleaner photo downsampling for stitch grids.
+- Two-pass conservative isolated-stitch cleanup with CIEDE2000 guard.
+- Better preservation of edges and thin details while reducing color speckles.
 # v0.7 — Phone Build / GitHub Actions
 - добавлен облачный workflow Build StitchCraft APK;
 - добавлен отдельный compile/lint workflow;
