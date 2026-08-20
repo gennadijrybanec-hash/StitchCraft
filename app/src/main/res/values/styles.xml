@@ -4,5 +4,7 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">#FAF8FC</item>
         <item name="android:navigationBarColor">#FAF8FC</item>
+        <item name="android:windowSplashScreenBackground">#F6EDFF</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>
 </resources>

@@ -745,11 +745,14 @@ fun ProjectsScreen(
                     Column(Modifier.padding(12.dp)) {
                         Text(p.name, fontWeight = FontWeight.Bold)
                         Text("${p.width}×${p.height} • ${p.colors} цветов • Aida ${p.fabricCount} • ${p.progress}% готово")
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = { onOpen(p) }) { Text("Открыть") }
-                            TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text("Переименовать") }
-                            TextButton(onClick = { onExport(p) }) { Text("Экспорт") }
-                            TextButton(onClick = { deleteTarget = p }) { Text("Удалить") }
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TextButton(onClick = { onOpen(p) }) { Text("Открыть", maxLines = 1) }
+                            TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text("Переименовать", maxLines = 1) }
+                            TextButton(onClick = { onExport(p) }) { Text("Экспорт", maxLines = 1) }
+                            TextButton(onClick = { deleteTarget = p }) { Text("Удалить", maxLines = 1) }
                         }
                     }
                 }
@@ -799,12 +802,19 @@ fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(
-            if (isPro) "Pro активирован ✓"
-            else "Большие схемы, до ${ReleaseConfig.PRO_MAX_COLORS} цветов, экспорт PDF/CSV/PNG и профессиональные инструменты подготовки схем."
-        )
-        if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text("Купить Pro") }
+        Text(if (isPro) "Pro активирован ✓" else "Полная версия для больших и детальных схем")
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Что входит в Pro", fontWeight = FontWeight.Bold)
+                Text("✓ Большие схемы до ${ReleaseConfig.PRO_MAX_WIDTH} крестиков по ширине")
+                Text("✓ До ${ReleaseConfig.PRO_MAX_COLORS} цветов DMC")
+                Text("✓ Экспорт PDF, PNG и CSV")
+                Text("✓ Сохранение, импорт и резервные копии проектов")
+                Text("✓ Отслеживание прогресса вышивки")
+            }
+        }
+        if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text("Получить StitchCraft Pro") }
         OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text("Восстановить покупку") }
-        Text("Перед публикацией товар stitchcraft_pro_lifetime нужно создать в Google Play Console.", style = MaterialTheme.typography.bodySmall)
+        Text("Покупка Pro будет подключена через Google Play. До публикации тестовая сборка может использовать тестовый режим покупки.", style = MaterialTheme.typography.bodySmall)
     }
 }

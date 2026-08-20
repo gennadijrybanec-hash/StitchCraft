@@ -88,3 +88,8 @@
 - Усилена валидация `.stitchcraft`.
 - Улучшено открытие проекта из Android.
 - Добавлены иконка, unit-тесты и lint в CI.
+
+## 1.0.0-rc2
+- Brand launcher icon and splash branding.
+- Responsive project action row for portrait screens.
+- Refined Pro presentation.
