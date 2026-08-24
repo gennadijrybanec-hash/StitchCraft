@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -591,6 +590,10 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
                 applyEdit(next)
             }
         )
+        Text(
+            "1 палец — прокрутка страницы • 2 пальца — масштаб • схема закреплена",
+            style = MaterialTheme.typography.bodySmall
+        )
 
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -672,7 +675,6 @@ fun PatternCanvas(
     // Keep the viewport stable while cells are edited. The pattern object changes on every
     // completed/erased/recolored cell, so keying panOffset by `pattern` would reset the view
     // after every tap. Reset only when a new editing session starts or the user requests fit.
-    var panOffset by remember(sessionId, viewResetKey) { mutableStateOf(Offset.Zero) }
     val currentOnCellTap by rememberUpdatedState(onCellTap)
     val currentOnZoom by rememberUpdatedState(onZoom)
     Canvas(
@@ -685,8 +687,8 @@ fun PatternCanvas(
     size.width / pattern.width,
     size.height / pattern.height
 ) * scale
-                    val offsetX = (size.width - pattern.width * cellSize) / 2f + panOffset.x
-val offsetY = (size.height - pattern.height * cellSize) / 2f + panOffset.y
+                    val offsetX = (size.width - pattern.width * cellSize) / 2f
+                    val offsetY = (size.height - pattern.height * cellSize) / 2f
                     if (cellSize <= 0f) return@detectTapGestures
                     val x = floor((offset.x - offsetX) / cellSize).toInt()
 val y = floor((offset.y - offsetY) / cellSize).toInt()
@@ -695,21 +697,32 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
                 }
             }
             .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    val cellSize = minOf(
-                        size.width / pattern.width,
-                        size.height / pattern.height
-                    ) * scale
-                    val contentWidth = pattern.width * cellSize
-                    val contentHeight = pattern.height * cellSize
-                    val maxPanX = maxOf(0f, (contentWidth - size.width) / 2f) + size.width * .45f
-                    val maxPanY = maxOf(0f, (contentHeight - size.height) / 2f) + size.height * .45f
-                    val nextPan = panOffset + pan
-                    panOffset = Offset(
-                        nextPan.x.coerceIn(-maxPanX, maxPanX),
-                        nextPan.y.coerceIn(-maxPanY, maxPanY)
-                    )
-                    currentOnZoom(zoom)
+                // One finger belongs to the page: it can scroll vertically across the canvas.
+                // Pattern pan/zoom is handled only with two fingers so the canvas no longer
+                // traps normal page scrolling.
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.size >= 2) {
+                            val a = pressed[0]
+                            val b = pressed[1]
+                            val currentDx = a.position.x - b.position.x
+                            val currentDy = a.position.y - b.position.y
+                            val previousDx = a.previousPosition.x - b.previousPosition.x
+                            val previousDy = a.previousPosition.y - b.previousPosition.y
+                            val currentDistance = kotlin.math.sqrt(currentDx * currentDx + currentDy * currentDy)
+                            val previousDistance = kotlin.math.sqrt(previousDx * previousDx + previousDy * previousDy)
+                            val zoom = if (previousDistance > 0.01f) currentDistance / previousDistance else 1f
+
+                            // The chart is anchored to the center of its viewport.
+                            // Two fingers change only zoom; dragging can no longer move the
+                            // chart out of its window. One-finger vertical gestures remain
+                            // available to the parent page scroll.
+                            if (zoom.isFinite() && zoom > 0f) currentOnZoom(zoom)
+                            pressed.forEach { it.consume() }
+                        }
+                    }
                 }
             }
     ) {
@@ -717,8 +730,8 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
     size.width / pattern.width,
     size.height / pattern.height
 ) * scale 
-        val offsetX = (size.width - pattern.width * cellSize) / 2f + panOffset.x
-val offsetY = (size.height - pattern.height * cellSize) / 2f + panOffset.y
+        val offsetX = (size.width - pattern.width * cellSize) / 2f
+        val offsetY = (size.height - pattern.height * cellSize) / 2f
         val maxX = pattern.width
 val maxY = pattern.height
         

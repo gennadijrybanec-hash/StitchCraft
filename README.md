@@ -46,3 +46,17 @@ The application ID remains `com.stitchcraft.app` so future Google Play updates c
 - Full palette now scrolls with the page instead of being trapped in a small nested list
 - Materials button moved out of the crowded export row
 - versionCode 109 / versionName 1.0.0-rc7-fix1-scroll
+
+
+## RC7 FIX2 Gesture fix
+- One-finger vertical swipes over the pattern scroll the whole page.
+- Two-finger gestures pan and zoom the pattern.
+- Tap remains available for stitch editing.
+
+
+## RC7 FIX3 — Anchored chart gestures
+- One finger scrolls the whole pattern page.
+- Tap still marks/edits a stitch.
+- Two fingers zoom the chart.
+- Internal chart pan is disabled so the chart cannot drift out of its viewport.
+- Materials/store search and all RC7 features are preserved.
