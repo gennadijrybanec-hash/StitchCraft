@@ -12,8 +12,8 @@ android {
         applicationId = "com.stitchcraft.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 111
-        versionName = "1.0.0-rc7-fix3-anchored-chart"
+        versionCode = 112
+        versionName = "1.0.0-rc8-play-test"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
