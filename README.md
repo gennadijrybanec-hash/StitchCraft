@@ -1,0 +1,40 @@
+# StitchCraft 1.0 RC7 — Store & Release Prep
+
+Stable commercial release candidate based on RC4.1 Commercial Clean.
+
+## Already implemented
+- Photo → cross-stitch pattern
+- DMC palette and symbols
+- Aida count and finished-size calculation
+- Saved projects and progress
+- Project import/export
+- PDF / CSV / PNG export
+- Free / Pro limits
+- Google Play Billing 9.1.0
+- Lifetime Pro product ID: `stitchcraft_pro_lifetime`
+- Stable debug signing key for test APK updates
+
+## RC5 release preparation
+- compileSdk / targetSdk: 36
+- Android Gradle Plugin: 8.11.1
+- Gradle in GitHub Actions: 8.13
+- versionCode: 105
+- versionName: 1.0.0-rc5
+- GitHub Actions builds a Debug APK and unsigned Release AAB
+- When Google Play upload-key secrets are configured, Actions also builds a signed Google Play AAB
+- Production keystore/passwords are never stored in the repository
+
+## Google Play signing secrets
+Add these GitHub repository secrets only when the Google Play upload key is created:
+- `STITCHCRAFT_UPLOAD_KEYSTORE_B64`
+- `STITCHCRAFT_KEYSTORE_PASSWORD`
+- `STITCHCRAFT_KEY_ALIAS`
+- `STITCHCRAFT_KEY_PASSWORD`
+
+The application ID remains `com.stitchcraft.app` so future Google Play updates can continue using the same store listing and user data.
+
+
+## RC7
+- Materials search from the pattern screen (Aida + DMC)
+- Support contact and Privacy Policy link in Pro/About
+- versionCode 108 / versionName 1.0.0-rc7-store-prep

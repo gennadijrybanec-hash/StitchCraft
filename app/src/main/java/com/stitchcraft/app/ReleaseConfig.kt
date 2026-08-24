@@ -3,6 +3,8 @@ package com.stitchcraft.app
 object ReleaseConfig {
     const val APP_NAME = "StitchCraft"
     const val PRO_PRODUCT_ID = "stitchcraft_pro_lifetime"
+    const val SUPPORT_EMAIL = "stitchcraft681@gmail.com"
+    const val PRIVACY_POLICY_URL = "https://gennadijrybanec-hash.github.io/StitchCraft/"
 
     // Keep networking disabled by default until analytics/cloud features are explicitly added.
     const val ENABLE_ANALYTICS = false

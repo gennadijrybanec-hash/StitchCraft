@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.stitchcraft.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.stitchcraft.app"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 103
-        versionName = "1.0.0-rc4"
+        targetSdk = 36
+        versionCode = 108
+        versionName = "1.0.0-rc7-store-prep"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -27,6 +27,18 @@ android {
             keyAlias = "stitchcraft-test"
             keyPassword = "stitchcraft-test"
         }
+
+        create("releaseUpload") {
+            // Google Play upload key is supplied only through environment variables / GitHub Secrets.
+            // No production password or keystore is committed to the repository.
+            val keystorePath = System.getenv("STITCHCRAFT_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("STITCHCRAFT_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("STITCHCRAFT_KEY_ALIAS")
+                keyPassword = System.getenv("STITCHCRAFT_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -36,6 +48,9 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (!System.getenv("STITCHCRAFT_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("releaseUpload")
+            }
         }
     }
     compileOptions {

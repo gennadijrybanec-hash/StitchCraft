@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.content.Intent
+import java.net.URLEncoder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -43,7 +44,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme()) {
+            StitchCraftTheme {
                 StitchCraftApp(initialImportUri = if (intent?.action == Intent.ACTION_VIEW) intent?.data else null)
             }
         }
@@ -76,6 +77,37 @@ private fun decodeBitmapForPattern(context: android.content.Context, uri: Uri, m
 }
 
 enum class EditTool { COLOR, ERASE, COMPLETE }
+
+private val StitchCraftWarmColors = lightColorScheme(
+    primary = Color(0xFF8A3F5D),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFFFD9E4),
+    onPrimaryContainer = Color(0xFF3A071D),
+    secondary = Color(0xFF765B65),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFFFD9E4),
+    onSecondaryContainer = Color(0xFF2C151E),
+    tertiary = Color(0xFF6D5D3F),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFF7E0B2),
+    onTertiaryContainer = Color(0xFF251A04),
+    background = Color(0xFFFFF8F5),
+    onBackground = Color(0xFF23191D),
+    surface = Color(0xFFFFF8F5),
+    onSurface = Color(0xFF23191D),
+    surfaceVariant = Color(0xFFF2E2E6),
+    onSurfaceVariant = Color(0xFF514348),
+    outline = Color(0xFF837378),
+    outlineVariant = Color(0xFFD5C2C7)
+)
+
+@Composable
+private fun StitchCraftTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = StitchCraftWarmColors,
+        content = content
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -421,6 +453,8 @@ fun PatternScreen(
         return
     }
 
+    val context = LocalContext.current
+    var showMaterials by remember(sessionId) { mutableStateOf(false) }
     var scale by remember(sessionId) { mutableFloatStateOf(1f) }
     var tool by remember(sessionId) { mutableStateOf(EditTool.COMPLETE) }
     var selectedColor by remember(sessionId) { mutableIntStateOf(0) }
@@ -529,7 +563,8 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             focusColor = focusColor,
             onZoom = { zoom ->
                 // Make pinch zoom responsive enough for large embroidery charts.
-                val acceleratedZoom = zoom.toDouble().pow(1.8).toFloat()
+                // Faster two-finger zoom: closer to DiamondCraft while keeping it smooth.
+                val acceleratedZoom = zoom.toDouble().pow(3.0).toFloat()
                 scale = (scale * acceleratedZoom).coerceIn(.6f, 20f)
             },
             onCellTap = { x, y ->
@@ -557,6 +592,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             Button(onClick = { onPdf(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PDF") }
             Button(onClick = { onCsv(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("CSV") }
             Button(onClick = { onPng(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PNG") }
+            OutlinedButton(onClick = { showMaterials = true }) { Text("Материалы") }
         }
 
         Text("Палитра", fontWeight = FontWeight.Bold)
@@ -571,6 +607,46 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             }
         }
     }
+
+    if (showMaterials) {
+        AlertDialog(
+            onDismissRequest = { showMaterials = false },
+            title = { Text("Материалы для схемы") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Канва: Aida $fabricCount • %.1f × %.1f см".format(finishedWidthCm, finishedHeightCm))
+                    OutlinedButton(
+                        onClick = { openMaterialSearch(context, "Aida $fabricCount cross stitch fabric buy") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Найти канву в магазинах") }
+
+                    HorizontalDivider()
+                    Text("Нитки DMC", fontWeight = FontWeight.Bold)
+                    Text("Нажмите на цвет, чтобы найти подходящие предложения в интернет-магазинах.", style = MaterialTheme.typography.bodySmall)
+                    pattern.palette.forEachIndexed { index, thread ->
+                        val count = pattern.counts()[index] ?: 0
+                        OutlinedButton(
+                            onClick = { openMaterialSearch(context, "DMC ${thread.code} embroidery floss buy") },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("${PatternEngine.symbolForIndex(index)}  DMC ${thread.code} • $count крестиков")
+                        }
+                    }
+                    Text("Покупка открывается во внешнем браузере. StitchCraft не передаёт изображения или проекты магазинам.", style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showMaterials = false }) { Text("Закрыть") } }
+        )
+    }
+}
+
+private fun openMaterialSearch(context: android.content.Context, query: String) {
+    val encoded = URLEncoder.encode(query, Charsets.UTF_8.name())
+    val uri = Uri.parse("https://www.google.com/search?q=$encoded")
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
 }
 
 @Composable
@@ -806,6 +882,7 @@ fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (isPro) "Pro активирован ✓" else "Полная версия для больших и детальных схем")
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -820,5 +897,15 @@ fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
         if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text("Получить StitchCraft Pro") }
         OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text("Восстановить покупку") }
         Text("Разовая покупка Pro через Google Play. После покупки доступ можно восстановить на другом устройстве с тем же аккаунтом Google.", style = MaterialTheme.typography.bodySmall)
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        Text("О приложении", fontWeight = FontWeight.Bold)
+        Text("StitchCraft превращает изображения в схемы для вышивки крестиком и помогает вести прогресс проекта.", style = MaterialTheme.typography.bodySmall)
+        Text("Поддержка: ${ReleaseConfig.SUPPORT_EMAIL}", style = MaterialTheme.typography.bodySmall)
+        val context = LocalContext.current
+        OutlinedButton(
+            onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ReleaseConfig.PRIVACY_POLICY_URL))) } },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Политика конфиденциальности") }
     }
 }
