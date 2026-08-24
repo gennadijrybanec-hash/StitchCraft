@@ -51,7 +51,12 @@ jobs:
           mkdir -p release-files
           cp app/build/outputs/apk/debug/*.apk release-files/StitchCraft-RC8-debug.apk
           cp app/build/outputs/bundle/release/*.aab release-files/StitchCraft-1.0-RC8-google-play.aab
-
+      - name: Check key alias
+        env:
+          UPLOAD_KEYSTORE_B64: ${{ secrets.STITCHCRAFT_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          echo "$UPLOAD_KEYSTORE_B64" | base64 --decode > upload-key.jks
+          keytool -list -v -keystore upload-key.jks
       - name: Upload APK and signed AAB
         uses: actions/upload-artifact@v4
         with:
