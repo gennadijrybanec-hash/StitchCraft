@@ -38,3 +38,11 @@ The application ID remains `com.stitchcraft.app` so future Google Play updates c
 - Materials search from the pattern screen (Aida + DMC)
 - Support contact and Privacy Policy link in Pro/About
 - versionCode 108 / versionName 1.0.0-rc7-store-prep
+
+
+## RC7 FIX1
+- Restored vertical scrolling of the whole pattern screen
+- Fixed canvas to a stable 360dp editing viewport so page content can scroll
+- Full palette now scrolls with the page instead of being trapped in a small nested list
+- Materials button moved out of the crowded export row
+- versionCode 109 / versionName 1.0.0-rc7-fix1-scroll

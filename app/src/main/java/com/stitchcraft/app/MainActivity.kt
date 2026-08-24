@@ -492,7 +492,15 @@ fun PatternScreen(
     val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
 val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
-    Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Keep the whole pattern screen vertically scrollable. The canvas has its own fixed
+    // viewport for pan/zoom, while the controls, exports and full palette can scroll as a page.
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Text("${pattern.width} × ${pattern.height} • ${pattern.palette.size} цветов", fontWeight = FontWeight.Bold)
         Text(
     "Канва Aida $fabricCount • %.1f × %.1f см".format(
@@ -558,7 +566,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             pattern = pattern,
             sessionId = sessionId,
             scale = scale,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(360.dp),
             viewResetKey = viewResetKey,
             focusColor = focusColor,
             onZoom = { zoom ->
@@ -592,19 +600,20 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             Button(onClick = { onPdf(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PDF") }
             Button(onClick = { onCsv(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("CSV") }
             Button(onClick = { onPng(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PNG") }
-            OutlinedButton(onClick = { showMaterials = true }) { Text("Материалы") }
         }
+        OutlinedButton(
+            onClick = { showMaterials = true },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Материалы") }
 
         Text("Палитра", fontWeight = FontWeight.Bold)
-        LazyColumn(Modifier.heightIn(max = 145.dp)) {
-            itemsIndexed(pattern.palette) { i, c ->
-                val count = pattern.counts()[i] ?: 0
-                val completedForColor = pattern.cells.count { !it.erased && it.colorIndex == i && it.completed }
-                Text(
-                    "${PatternEngine.symbolForIndex(i)}  ${c.code} • ${c.name} — $completedForColor/$count",
-                    Modifier.padding(vertical = 2.dp)
-                )
-            }
+        pattern.palette.forEachIndexed { i, c ->
+            val count = pattern.counts()[i] ?: 0
+            val completedForColor = pattern.cells.count { !it.erased && it.colorIndex == i && it.completed }
+            Text(
+                "${PatternEngine.symbolForIndex(i)}  ${c.code} • ${c.name} — $completedForColor/$count",
+                Modifier.padding(vertical = 2.dp)
+            )
         }
     }
 
