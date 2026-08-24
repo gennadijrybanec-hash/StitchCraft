@@ -1,37 +1,59 @@
-name: Build StitchCraft APK
+name: Build StitchCraft Android
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-      - master
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout project
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v5
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
-      - name: Set up Gradle 8.13
+      - name: Setup Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
-      - name: Build debug APK
+      - name: Build Debug APK
         run: gradle assembleDebug
 
-      - name: Upload APK
+      - name: Prepare Google Play upload key
+        shell: bash
+        env:
+          UPLOAD_KEYSTORE_B64: ${{ secrets.STITCHCRAFT_UPLOAD_KEYSTORE_B64 }}
+        run: |
+          test -n "$UPLOAD_KEYSTORE_B64" || { echo "Missing STITCHCRAFT_UPLOAD_KEYSTORE_B64 secret"; exit 1; }
+          printf '%s' "$UPLOAD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/stitchcraft-upload.jks"
+
+      - name: Build signed Google Play AAB
+        env:
+          STITCHCRAFT_KEYSTORE_PATH: ${{ runner.temp }}/stitchcraft-upload.jks
+          STITCHCRAFT_KEYSTORE_PASSWORD: ${{ secrets.STITCHCRAFT_KEYSTORE_PASSWORD }}
+          STITCHCRAFT_KEY_ALIAS: ${{ secrets.STITCHCRAFT_KEY_ALIAS }}
+          STITCHCRAFT_KEY_PASSWORD: ${{ secrets.STITCHCRAFT_KEY_PASSWORD }}
+        run: gradle bundleRelease
+
+      - name: Collect APK and AAB
+        shell: bash
+        run: |
+          mkdir -p release-files
+          cp app/build/outputs/apk/debug/*.apk release-files/StitchCraft-RC8-debug.apk
+          cp app/build/outputs/bundle/release/*.aab release-files/StitchCraft-1.0-RC8-google-play.aab
+
+      - name: Upload APK and signed AAB
         uses: actions/upload-artifact@v4
         with:
-          name: StitchCraft-debug-apk
-          path: '**/build/outputs/apk/debug/*.apk'
-          if-no-files-found: error
+          name: StitchCraft-RC8-APK-and-GooglePlay-AAB
+          path: release-files/*
