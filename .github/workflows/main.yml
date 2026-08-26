@@ -37,8 +37,9 @@ jobs:
           test -n "$UPLOAD_KEYSTORE_B64" || { echo "Missing STITCHCRAFT_UPLOAD_KEYSTORE_B64 secret"; exit 1; }
           printf '%s' "$UPLOAD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/stitchcraft-upload.jks"
           ls -l "$RUNNER_TEMP/stitchcraft-upload.jks"
-          - name: Build signed Google Play AAB
-          env:
+
+      - name: Build signed Google Play AAB
+        env:
           STITCHCRAFT_KEYSTORE_PATH: ${{ runner.temp }}/stitchcraft-upload.jks
           STITCHCRAFT_KEYSTORE_PASSWORD: ${{ secrets.STITCHCRAFT_KEYSTORE_PASSWORD }}
           STITCHCRAFT_KEY_ALIAS: ${{ secrets.STITCHCRAFT_KEY_ALIAS }}
