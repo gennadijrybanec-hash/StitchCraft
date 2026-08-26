@@ -38,8 +38,8 @@ jobs:
           printf '%s' "$UPLOAD_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/stitchcraft-upload.jks"
           ls -l "$RUNNER_TEMP/stitchcraft-upload.jks"
 
-            - name: Verify Google Play upload key
-         shell: bash
+      - name: Verify Google Play upload key
+        shell: bash
         env:
           STITCHCRAFT_KEYSTORE_PASSWORD: ${{ secrets.STITCHCRAFT_KEYSTORE_PASSWORD }}
           STITCHCRAFT_KEY_ALIAS: ${{ secrets.STITCHCRAFT_KEY_ALIAS }}
@@ -55,7 +55,7 @@ jobs:
           STITCHCRAFT_KEYSTORE_PASSWORD: ${{ secrets.STITCHCRAFT_KEYSTORE_PASSWORD }}
           STITCHCRAFT_KEY_ALIAS: ${{ secrets.STITCHCRAFT_KEY_ALIAS }}
           STITCHCRAFT_KEY_PASSWORD: ${{ secrets.STITCHCRAFT_KEY_PASSWORD }}
-        run: gradle bundleRelease
+        run: gradle bundleRelease 
       - name: Collect APK and AAB
         shell: bash
         run: |
