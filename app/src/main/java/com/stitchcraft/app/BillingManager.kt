@@ -98,14 +98,16 @@ class BillingManager(
             val selectedOffer = offers.firstOrNull { it.purchaseOptionId == PRO_PURCHASE_OPTION_ID }
                 ?: offers.firstOrNull()
 
-            if (selectedOffer == null || selectedOffer.offerToken.isBlank()) {
-                onMessage("Для StitchCraft Pro не найден активный способ покупки в Google Play.")
-                return@queryProductDetailsAsync
-            }
+           val offerToken = selectedOffer?.offerToken?.takeIf { it.isNotBlank() }
 
-            val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
-                .setProductDetails(details)
-                .setOfferToken(selectedOffer.offerToken)
+if (offerToken == null) {
+    onMessage("Для StitchCraft Pro не найден активный способ покупки в Google Play.")
+    return@queryProductDetailsAsync
+}
+
+val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+    .setProductDetails(details)
+    .setOfferToken(offerToken)
                 .build()
 
             activity.runOnUiThread {
