@@ -10,7 +10,10 @@ class BillingManager(
     private val onProChanged: (Boolean) -> Unit,
     private val onMessage: (String) -> Unit = {}
 ) : PurchasesUpdatedListener {
-    companion object { const val PRO_PRODUCT_ID = ReleaseConfig.PRO_PRODUCT_ID }
+    companion object {
+        const val PRO_PRODUCT_ID = ReleaseConfig.PRO_PRODUCT_ID
+        private const val PRO_PURCHASE_OPTION_ID = "pro-lifetime"
+    }
 
     private val client = BillingClient.newBuilder(context.applicationContext)
         .setListener(this)
@@ -20,22 +23,52 @@ class BillingManager(
         .enableAutoServiceReconnection()
         .build()
 
-    private var productDetails: ProductDetails? = null
-
     fun start() {
-        if (client.isReady) return
+        if (client.isReady) {
+            restore(showMessage = false)
+            return
+        }
         client.startConnection(object : BillingClientStateListener {
             override fun onBillingServiceDisconnected() = Unit
+
             override fun onBillingSetupFinished(result: BillingResult) {
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                    queryProduct()
                     restore(showMessage = false)
                 }
             }
         })
     }
 
-    private fun queryProduct() {
+    /**
+     * Query ProductDetails immediately before each purchase attempt.
+     * Google recommends not caching ProductDetails because stale details can make
+     * launchBillingFlow() fail. This is also important after a product has just been
+     * activated or its purchase options/prices have changed in Play Console.
+     */
+    fun purchase(activity: Activity) {
+        onMessage("Подключение к Google Play…")
+
+        if (client.isReady) {
+            queryAndLaunchPurchase(activity)
+            return
+        }
+
+        client.startConnection(object : BillingClientStateListener {
+            override fun onBillingServiceDisconnected() {
+                onMessage("Связь с Google Play прервана. Повторите попытку.")
+            }
+
+            override fun onBillingSetupFinished(result: BillingResult) {
+                if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                    queryAndLaunchPurchase(activity)
+                } else {
+                    onMessage(billingError("Google Play Billing недоступен", result))
+                }
+            }
+        })
+    }
+
+    private fun queryAndLaunchPurchase(activity: Activity) {
         val product = QueryProductDetailsParams.Product.newBuilder()
             .setProductId(PRO_PRODUCT_ID)
             .setProductType(BillingClient.ProductType.INAPP)
@@ -43,38 +76,50 @@ class BillingManager(
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(listOf(product))
             .build()
-        client.queryProductDetailsAsync(params) { result, queryResult ->
-            productDetails = if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                queryResult.productDetailsList.firstOrNull { it.productId == PRO_PRODUCT_ID }
-            } else null
-        }
-    }
 
-    fun purchase(activity: Activity) {
-        if (!client.isReady) {
-            onMessage("Google Play пока недоступен. Повторите попытку.")
-            start()
-            return
-        }
-        val details = productDetails
-        if (details == null) {
-            onMessage("Покупка Pro станет доступна после настройки товара в Google Play.")
-            queryProduct()
-            return
-        }
-        val builder = BillingFlowParams.ProductDetailsParams.newBuilder()
-            .setProductDetails(details)
-        details.oneTimePurchaseOfferDetailsList?.firstOrNull()?.offerToken
-            ?.takeIf { it.isNotBlank() }
-            ?.let(builder::setOfferToken)
-        val result = client.launchBillingFlow(
-            activity,
-            BillingFlowParams.newBuilder()
-                .setProductDetailsParamsList(listOf(builder.build()))
+        client.queryProductDetailsAsync(params) { result, queryResult ->
+            if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+                onMessage(billingError("Не удалось получить StitchCraft Pro", result))
+                return@queryProductDetailsAsync
+            }
+
+            val details = queryResult.productDetailsList
+                .firstOrNull { it.productId == PRO_PRODUCT_ID }
+
+            if (details == null) {
+                onMessage(
+                    "Google Play пока не возвращает товар $PRO_PRODUCT_ID. " +
+                        "Проверьте, что приложение установлено из тестовой версии Google Play и используется аккаунт тестировщика."
+                )
+                return@queryProductDetailsAsync
+            }
+
+            val offers = details.oneTimePurchaseOfferDetailsList.orEmpty()
+            val selectedOffer = offers.firstOrNull { it.purchaseOptionId == PRO_PURCHASE_OPTION_ID }
+                ?: offers.firstOrNull()
+
+            if (selectedOffer == null || selectedOffer.offerToken.isBlank()) {
+                onMessage("Для StitchCraft Pro не найден активный способ покупки в Google Play.")
+                return@queryProductDetailsAsync
+            }
+
+            val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(details)
+                .setOfferToken(selectedOffer.offerToken)
                 .build()
-        )
-        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-            onMessage("Не удалось открыть Google Play: ${result.debugMessage}")
+
+            activity.runOnUiThread {
+                val launchResult = client.launchBillingFlow(
+                    activity,
+                    BillingFlowParams.newBuilder()
+                        .setProductDetailsParamsList(listOf(productParams))
+                        .build()
+                )
+
+                if (launchResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    onMessage(billingError("Не удалось открыть окно покупки Google Play", launchResult))
+                }
+            }
         }
     }
 
@@ -92,9 +137,11 @@ class BillingManager(
                 val owned = purchases.filter(::isOwnedPro)
                 onProChanged(owned.isNotEmpty())
                 owned.filter { !it.isAcknowledged }.forEach(::acknowledge)
-                if (showMessage) onMessage(if (owned.isNotEmpty()) "Покупка Pro восстановлена" else "Покупка Pro не найдена")
+                if (showMessage) {
+                    onMessage(if (owned.isNotEmpty()) "Покупка Pro восстановлена" else "Покупка Pro не найдена")
+                }
             } else if (showMessage) {
-                onMessage("Не удалось проверить покупку: ${result.debugMessage}")
+                onMessage(billingError("Не удалось проверить покупку", result))
             }
         }
     }
@@ -124,10 +171,15 @@ class BillingManager(
                     acknowledge(purchase)
                 }
             }
-            BillingClient.BillingResponseCode.USER_CANCELED -> Unit
+            BillingClient.BillingResponseCode.USER_CANCELED -> onMessage("Покупка отменена")
             BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> restore(showMessage = true)
-            else -> onMessage("Покупка не завершена: ${result.debugMessage}")
+            else -> onMessage(billingError("Покупка не завершена", result))
         }
+    }
+
+    private fun billingError(prefix: String, result: BillingResult): String {
+        val details = result.debugMessage.takeIf { it.isNotBlank() } ?: "код ${result.responseCode}"
+        return "$prefix: $details"
     }
 
     fun stop() {

@@ -368,7 +368,8 @@ pngSaveLauncher.launch(f.name)
                 )
 
                 3 -> ProScreen(
-                    isPro,
+                    isPro = isPro,
+                    statusMessage = message,
                     onBuy = { billing.purchase(context as Activity) },
                     onRestore = { billing.restore() }
                 )
@@ -898,7 +899,12 @@ fun ProjectsScreen(
 }
 
 @Composable
-fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
+fun ProScreen(
+    isPro: Boolean,
+    statusMessage: String?,
+    onBuy: () -> Unit,
+    onRestore: () -> Unit
+) {
     Column(
         Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -906,6 +912,11 @@ fun ProScreen(isPro: Boolean, onBuy: () -> Unit, onRestore: () -> Unit) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (isPro) "Pro активирован ✓" else "Полная версия для больших и детальных схем")
+        statusMessage?.let { status ->
+            Card(Modifier.fillMaxWidth()) {
+                Text(status, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+            }
+        }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Что входит в Pro", fontWeight = FontWeight.Bold)
