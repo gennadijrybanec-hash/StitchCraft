@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
@@ -39,6 +40,27 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
+private data class AdaptiveUiMetrics(
+    val pagePadding: androidx.compose.ui.unit.Dp,
+    val sectionSpacing: androidx.compose.ui.unit.Dp,
+    val compact: Boolean,
+    val canvasHeight: androidx.compose.ui.unit.Dp
+)
+
+@Composable
+private fun adaptiveUiMetrics(): AdaptiveUiMetrics {
+    val configuration = LocalConfiguration.current
+    val width = configuration.screenWidthDp
+    val height = configuration.screenHeightDp
+
+    return when {
+        width < 360 -> AdaptiveUiMetrics(10.dp, 10.dp, true, if (height < 600) 260.dp else 300.dp)
+        width < 420 -> AdaptiveUiMetrics(12.dp, 12.dp, true, if (height < 650) 300.dp else 340.dp)
+        width < 600 -> AdaptiveUiMetrics(16.dp, 14.dp, false, 360.dp)
+        else -> AdaptiveUiMetrics(24.dp, 18.dp, false, 440.dp)
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -395,9 +417,10 @@ fun CreateScreen(
     onCleanup: (Boolean) -> Unit,
     onGenerate: () -> Unit
 ) {
+    val ui = adaptiveUiMetrics()
     Column(
-        Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        Modifier.padding(ui.pagePadding).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(ui.sectionSpacing)
     ) {
         Text("Фото → схема для вышивки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Выберите изображение. StitchCraft уменьшит его до сетки, сопоставит оттенки с палитрой ниток и назначит каждому цвету символ.")
@@ -420,12 +443,22 @@ Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         )
     }
 }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f)) {
-                Text("Упростить одиночные крестики")
+        if (ui.compact) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Упростить одиночные крестики", modifier = Modifier.weight(1f))
+                    Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
+                }
                 Text("Убирает часть цветового шума и делает схему удобнее для вышивания.", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f)) {
+                    Text("Упростить одиночные крестики")
+                    Text("Убирает часть цветового шума и делает схему удобнее для вышивания.", style = MaterialTheme.typography.bodySmall)
+                }
+                Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
+            }
         }
         if (!isPro) {
             Text("Free: до ${ReleaseConfig.FREE_MAX_WIDTH} крестиков по ширине и ${ReleaseConfig.FREE_MAX_COLORS} цветов. Pro снимает ограничения и включает экспорт.", style = MaterialTheme.typography.bodySmall)
@@ -492,14 +525,15 @@ fun PatternScreen(
     val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
 val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
-    // Keep the whole pattern screen vertically scrollable. The canvas has its own fixed
-    // viewport for pan/zoom, while the controls, exports and full palette can scroll as a page.
+    val ui = adaptiveUiMetrics()
+
+    // The page uses width-based spacing while the chart viewport also adapts to shorter screens.
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(ui.pagePadding),
+        verticalArrangement = Arrangement.spacedBy(if (ui.compact) 6.dp else 8.dp)
     ) {
         Text("${pattern.width} × ${pattern.height} • ${pattern.palette.size} цветов", fontWeight = FontWeight.Bold)
         Text(
@@ -566,7 +600,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             pattern = pattern,
             sessionId = sessionId,
             scale = scale,
-            modifier = Modifier.fillMaxWidth().height(360.dp),
+            modifier = Modifier.fillMaxWidth().height(ui.canvasHeight),
             viewResetKey = viewResetKey,
             focusColor = focusColor,
             onZoom = { zoom ->
@@ -836,10 +870,18 @@ fun ProjectsScreen(
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SavedProject?>(null) }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            OutlinedButton(onClick = onImport) { Text("Импорт") }
+    val ui = adaptiveUiMetrics()
+    Column(Modifier.fillMaxSize().padding(ui.pagePadding)) {
+        if (ui.compact) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) { Text("Импорт") }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = onImport) { Text("Импорт") }
+            }
         }
         if (projects.isEmpty()) Text("Пока нет проектов.", Modifier.padding(top = 16.dp))
         LazyColumn {
@@ -905,9 +947,10 @@ fun ProScreen(
     onBuy: () -> Unit,
     onRestore: () -> Unit
 ) {
+    val ui = adaptiveUiMetrics()
     Column(
-        Modifier.padding(20.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        Modifier.padding(ui.pagePadding).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(ui.sectionSpacing)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

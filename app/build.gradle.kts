@@ -12,8 +12,8 @@ android {
         applicationId = "com.stitchcraft.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 115
-        versionName = "1.0.0-rc8-billing-fix2"
+        versionCode = 130
+        versionName = "1.0.0-rc8-adaptive-ui"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
