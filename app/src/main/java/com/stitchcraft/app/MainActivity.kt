@@ -40,27 +40,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
-private data class AdaptiveUiMetrics(
-    val pagePadding: androidx.compose.ui.unit.Dp,
-    val sectionSpacing: androidx.compose.ui.unit.Dp,
-    val compact: Boolean,
-    val canvasHeight: androidx.compose.ui.unit.Dp
-)
 
 @Composable
-private fun adaptiveUiMetrics(): AdaptiveUiMetrics {
-    val configuration = LocalConfiguration.current
-    val width = configuration.screenWidthDp
-    val height = configuration.screenHeightDp
+private fun isCompactScreen(): Boolean = LocalConfiguration.current.screenWidthDp < 420
 
-    return when {
-        width < 360 -> AdaptiveUiMetrics(10.dp, 10.dp, true, if (height < 600) 260.dp else 300.dp)
-        width < 420 -> AdaptiveUiMetrics(12.dp, 12.dp, true, if (height < 650) 300.dp else 340.dp)
-        width < 600 -> AdaptiveUiMetrics(16.dp, 14.dp, false, 360.dp)
-        else -> AdaptiveUiMetrics(24.dp, 18.dp, false, 440.dp)
-    }
+@Composable
+private fun adaptivePagePadding() = when {
+    LocalConfiguration.current.screenWidthDp < 360 -> 10.dp
+    LocalConfiguration.current.screenWidthDp < 420 -> 12.dp
+    LocalConfiguration.current.screenWidthDp < 600 -> 16.dp
+    else -> 20.dp
 }
 
+@Composable
+private fun adaptiveCanvasHeight() = when {
+    LocalConfiguration.current.screenHeightDp < 600 -> 260.dp
+    LocalConfiguration.current.screenHeightDp < 700 -> 320.dp
+    LocalConfiguration.current.screenWidthDp >= 600 -> 440.dp
+    else -> 360.dp
+}
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -417,10 +415,11 @@ fun CreateScreen(
     onCleanup: (Boolean) -> Unit,
     onGenerate: () -> Unit
 ) {
-    val ui = adaptiveUiMetrics()
+    val compact = isCompactScreen()
+    val pagePadding = adaptivePagePadding()
     Column(
-        Modifier.padding(ui.pagePadding).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(ui.sectionSpacing)
+        Modifier.padding(pagePadding).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp)
     ) {
         Text("Фото → схема для вышивки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Выберите изображение. StitchCraft уменьшит его до сетки, сопоставит оттенки с палитрой ниток и назначит каждому цвету символ.")
@@ -443,10 +442,10 @@ Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         )
     }
 }
-        if (ui.compact) {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (compact) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Упростить одиночные крестики", modifier = Modifier.weight(1f))
+                    Text("Упростить одиночные крестики", modifier = Modifier.weight(1f), maxLines = 2)
                     Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
                 }
                 Text("Убирает часть цветового шума и делает схему удобнее для вышивания.", style = MaterialTheme.typography.bodySmall)
@@ -525,15 +524,14 @@ fun PatternScreen(
     val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
 val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
-    val ui = adaptiveUiMetrics()
-
-    // The page uses width-based spacing while the chart viewport also adapts to shorter screens.
+    // Keep the whole pattern screen vertically scrollable. The canvas has its own fixed
+    // viewport for pan/zoom, while the controls, exports and full palette can scroll as a page.
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(ui.pagePadding),
-        verticalArrangement = Arrangement.spacedBy(if (ui.compact) 6.dp else 8.dp)
+            .padding(adaptivePagePadding()),
+        verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 6.dp else 8.dp)
     ) {
         Text("${pattern.width} × ${pattern.height} • ${pattern.palette.size} цветов", fontWeight = FontWeight.Bold)
         Text(
@@ -600,7 +598,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
             pattern = pattern,
             sessionId = sessionId,
             scale = scale,
-            modifier = Modifier.fillMaxWidth().height(ui.canvasHeight),
+            modifier = Modifier.fillMaxWidth().height(adaptiveCanvasHeight()),
             viewResetKey = viewResetKey,
             focusColor = focusColor,
             onZoom = { zoom ->
@@ -870,11 +868,11 @@ fun ProjectsScreen(
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<SavedProject?>(null) }
 
-    val ui = adaptiveUiMetrics()
-    Column(Modifier.fillMaxSize().padding(ui.pagePadding)) {
-        if (ui.compact) {
+    val compact = isCompactScreen()
+    Column(Modifier.fillMaxSize().padding(adaptivePagePadding())) {
+        if (compact) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 2)
                 OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) { Text("Импорт") }
             }
         } else {
@@ -947,10 +945,9 @@ fun ProScreen(
     onBuy: () -> Unit,
     onRestore: () -> Unit
 ) {
-    val ui = adaptiveUiMetrics()
     Column(
-        Modifier.padding(ui.pagePadding).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(ui.sectionSpacing)
+        Modifier.padding(adaptivePagePadding()).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 10.dp else 12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
