@@ -23,7 +23,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -34,7 +38,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlin.math.pow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,6 +102,13 @@ private fun decodeBitmapForPattern(context: android.content.Context, uri: Uri, m
 }
 
 enum class EditTool { COLOR, ERASE, COMPLETE }
+
+private data class PatternStats(
+    val total: Int,
+    val done: Int,
+    val counts: IntArray,
+    val completedByColor: IntArray
+)
 
 private val StitchCraftWarmColors = lightColorScheme(
     primary = Color(0xFF8A3F5D),
@@ -519,10 +532,30 @@ fun PatternScreen(
         onPatternChange(next)
     }
 
-    val total = pattern.stitchCount()
-    val done = pattern.completedCount()
+    // Calculate all progress/palette counters in one pass and reuse them until the pattern changes.
+    // The previous UI repeatedly scanned every cell once per palette row, which becomes expensive
+    // on 40k+ stitch charts.
+    val stats = remember(pattern) {
+        val counts = IntArray(pattern.palette.size)
+        val completedByColor = IntArray(pattern.palette.size)
+        var total = 0
+        var done = 0
+        pattern.cells.forEach { cell ->
+            if (!cell.erased) {
+                total++
+                if (cell.colorIndex in counts.indices) counts[cell.colorIndex]++
+                if (cell.completed) {
+                    done++
+                    if (cell.colorIndex in completedByColor.indices) completedByColor[cell.colorIndex]++
+                }
+            }
+        }
+        PatternStats(total, done, counts, completedByColor)
+    }
+    val total = stats.total
+    val done = stats.done
     val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
-val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
+    val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
     // Keep the whole pattern screen vertically scrollable. The canvas has its own fixed
     // viewport for pan/zoom, while the controls, exports and full palette can scroll as a page.
@@ -644,8 +677,8 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
         Text("Палитра", fontWeight = FontWeight.Bold)
         pattern.palette.forEachIndexed { i, c ->
-            val count = pattern.counts()[i] ?: 0
-            val completedForColor = pattern.cells.count { !it.erased && it.colorIndex == i && it.completed }
+            val count = stats.counts.getOrElse(i) { 0 }
+            val completedForColor = stats.completedByColor.getOrElse(i) { 0 }
             Text(
                 "${PatternEngine.symbolForIndex(i)}  ${c.code} • ${c.name} — $completedForColor/$count",
                 Modifier.padding(vertical = 2.dp)
@@ -672,7 +705,7 @@ val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
                     Text("Нитки DMC", fontWeight = FontWeight.Bold)
                     Text("Нажмите на цвет, чтобы найти подходящие предложения в интернет-магазинах.", style = MaterialTheme.typography.bodySmall)
                     pattern.palette.forEachIndexed { index, thread ->
-                        val count = pattern.counts()[index] ?: 0
+                        val count = stats.counts.getOrElse(index) { 0 }
                         OutlinedButton(
                             onClick = { openMaterialSearch(context, "DMC ${thread.code} embroidery floss buy") },
                             modifier = Modifier.fillMaxWidth()
@@ -706,10 +739,42 @@ fun PatternCanvas(
     onCellTap: (Int, Int) -> Unit
 ) {
     // Keep the viewport stable while cells are edited. The pattern object changes on every
-    // completed/erased/recolored cell, so keying panOffset by `pattern` would reset the view
-    // after every tap. Reset only when a new editing session starts or the user requests fit.
+    // completed/erased/recolored cell, so reset only for a new session or explicit fit.
     val currentOnCellTap by rememberUpdatedState(onCellTap)
     val currentOnZoom by rememberUpdatedState(onZoom)
+
+    // Fast low-zoom preview: one bitmap pixel represents one stitch. At fit-to-screen this
+    // replaces tens of thousands of individual drawRect calls with a single bitmap draw.
+    val fastPreview = remember(pattern, focusColor) {
+        val pixels = IntArray(pattern.width * pattern.height)
+        pattern.cells.forEachIndexed { index, pc ->
+            val rgb = when {
+                pc.erased -> android.graphics.Color.WHITE
+                pc.completed -> android.graphics.Color.rgb(46, 125, 50)
+                else -> pattern.palette[pc.colorIndex].rgb
+            }
+            if (focusColor >= 0 && !pc.erased && pc.colorIndex != focusColor) {
+                val r = android.graphics.Color.red(rgb)
+                val g = android.graphics.Color.green(rgb)
+                val b = android.graphics.Color.blue(rgb)
+                // Match the old faded focus look without adding per-cell alpha drawing work.
+                pixels[index] = android.graphics.Color.rgb(
+                    (r * .16f + 255f * .84f).roundToInt(),
+                    (g * .16f + 255f * .84f).roundToInt(),
+                    (b * .16f + 255f * .84f).roundToInt()
+                )
+            } else {
+                pixels[index] = rgb
+            }
+        }
+        android.graphics.Bitmap.createBitmap(
+            pixels,
+            pattern.width,
+            pattern.height,
+            android.graphics.Bitmap.Config.ARGB_8888
+        ).asImageBitmap()
+    }
+
     Canvas(
         modifier
             .background(Color.White)
@@ -717,22 +782,19 @@ fun PatternCanvas(
             .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
                 detectTapGestures { offset ->
                     val cellSize = minOf(
-    size.width / pattern.width,
-    size.height / pattern.height
-) * scale
+                        size.width / pattern.width,
+                        size.height / pattern.height
+                    ) * scale
                     val offsetX = (size.width - pattern.width * cellSize) / 2f
                     val offsetY = (size.height - pattern.height * cellSize) / 2f
                     if (cellSize <= 0f) return@detectTapGestures
                     val x = floor((offset.x - offsetX) / cellSize).toInt()
-val y = floor((offset.y - offsetY) / cellSize).toInt()
-                    
+                    val y = floor((offset.y - offsetY) / cellSize).toInt()
                     if (x in 0 until pattern.width && y in 0 until pattern.height) currentOnCellTap(x, y)
                 }
             }
             .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
-                // One finger belongs to the page: it can scroll vertically across the canvas.
-                // Pattern pan/zoom is handled only with two fingers so the canvas no longer
-                // traps normal page scrolling.
+                // One finger remains available to the page. Two fingers change chart zoom.
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
@@ -747,11 +809,6 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
                             val currentDistance = kotlin.math.sqrt(currentDx * currentDx + currentDy * currentDy)
                             val previousDistance = kotlin.math.sqrt(previousDx * previousDx + previousDy * previousDy)
                             val zoom = if (previousDistance > 0.01f) currentDistance / previousDistance else 1f
-
-                            // The chart is anchored to the center of its viewport.
-                            // Two fingers change only zoom; dragging can no longer move the
-                            // chart out of its window. One-finger vertical gestures remain
-                            // available to the parent page scroll.
                             if (zoom.isFinite() && zoom > 0f) currentOnZoom(zoom)
                             pressed.forEach { it.consume() }
                         }
@@ -759,15 +816,57 @@ val y = floor((offset.y - offsetY) / cellSize).toInt()
                 }
             }
     ) {
-       val cellSize = minOf(
-    size.width / pattern.width,
-    size.height / pattern.height
-) * scale 
+        val cellSize = minOf(
+            size.width / pattern.width,
+            size.height / pattern.height
+        ) * scale
         val offsetX = (size.width - pattern.width * cellSize) / 2f
         val offsetY = (size.height - pattern.height * cellSize) / 2f
-        val maxX = pattern.width
-val maxY = pattern.height
-        
+
+        fun drawGuideLines() {
+            if (cellSize < 4f) return
+            val guideWidth = if (cellSize >= 14f) 2.4f else 1.7f
+            val visibleStartX = floor((0f - offsetX) / cellSize).toInt().coerceIn(0, pattern.width)
+            val visibleEndX = ceil((size.width - offsetX) / cellSize).toInt().coerceIn(0, pattern.width)
+            val visibleStartY = floor((0f - offsetY) / cellSize).toInt().coerceIn(0, pattern.height)
+            val visibleEndY = ceil((size.height - offsetY) / cellSize).toInt().coerceIn(0, pattern.height)
+            val firstGuideX = ((visibleStartX + 9) / 10) * 10
+            val firstGuideY = ((visibleStartY + 9) / 10) * 10
+            for (x in firstGuideX..visibleEndX step 10) {
+                val lineX = offsetX + x * cellSize
+                drawLine(
+                    Color.Black.copy(alpha = .62f),
+                    Offset(lineX, maxOf(0f, offsetY)),
+                    Offset(lineX, minOf(size.height, offsetY + pattern.height * cellSize)),
+                    strokeWidth = guideWidth
+                )
+            }
+            for (y in firstGuideY..visibleEndY step 10) {
+                val lineY = offsetY + y * cellSize
+                drawLine(
+                    Color.Black.copy(alpha = .62f),
+                    Offset(maxOf(0f, offsetX), lineY),
+                    Offset(minOf(size.width, offsetX + pattern.width * cellSize), lineY),
+                    strokeWidth = guideWidth
+                )
+            }
+        }
+
+        // Below this size symbols are not useful. Use the cached raster preview instead of
+        // painting every stitch separately; keep 10x10 guides when they are still readable.
+        if (cellSize < 8f) {
+            val dstWidth = (pattern.width * cellSize).roundToInt().coerceAtLeast(1)
+            val dstHeight = (pattern.height * cellSize).roundToInt().coerceAtLeast(1)
+            drawImage(
+                image = fastPreview,
+                dstOffset = IntOffset(offsetX.roundToInt(), offsetY.roundToInt()),
+                dstSize = IntSize(dstWidth, dstHeight),
+                filterQuality = FilterQuality.None
+            )
+            drawGuideLines()
+            return@Canvas
+        }
+
         val textPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             textAlign = android.graphics.Paint.Align.CENTER
@@ -782,7 +881,14 @@ val maxY = pattern.height
             return if (luminance < 145) android.graphics.Color.WHITE else android.graphics.Color.BLACK
         }
 
-        for (y in 0 until maxY) for (x in 0 until maxX) {
+        // Draw only cells that intersect the viewport. On zoomed large charts this cuts work
+        // from the entire 40k-90k cell pattern to the small portion actually visible on screen.
+        val startX = floor((0f - offsetX) / cellSize).toInt().coerceIn(0, pattern.width - 1)
+        val endX = ceil((size.width - offsetX) / cellSize).toInt().coerceIn(0, pattern.width)
+        val startY = floor((0f - offsetY) / cellSize).toInt().coerceIn(0, pattern.height - 1)
+        val endY = ceil((size.height - offsetY) / cellSize).toInt().coerceIn(0, pattern.height)
+
+        for (y in startY until endY) for (x in startX until endX) {
             val pc = pattern.cell(x, y)
             val left = offsetX + x * cellSize
             val top = offsetY + y * cellSize
@@ -792,66 +898,37 @@ val maxY = pattern.height
             drawRect(fill, Offset(left, top), androidx.compose.ui.geometry.Size(cellSize, cellSize))
 
             if (pc.completed && !pc.erased) {
-                // A completed stitch must remain unmistakably visible after tapping other cells.
                 drawRect(
                     Color(0xFF2E7D32).copy(alpha = .42f),
                     Offset(left, top),
                     androidx.compose.ui.geometry.Size(cellSize, cellSize)
                 )
-                if (cellSize >= 6f) {
-                    val inset = (cellSize * .08f).coerceAtLeast(1f)
-                    drawRect(
-                        Color(0xFF0B6B2B),
-                        Offset(left + inset, top + inset),
-                        androidx.compose.ui.geometry.Size(cellSize - inset * 2, cellSize - inset * 2),
-                        style = Stroke((cellSize * .08f).coerceIn(1.2f, 4f))
-                    )
-                }
-                if (cellSize >= 8f) {
-                    textPaint.color = android.graphics.Color.WHITE
-                    textPaint.setShadowLayer((cellSize * .08f).coerceAtLeast(1f), 0f, 0f, android.graphics.Color.BLACK)
-                    textPaint.textSize = cellSize * .72f
-                    drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .5f, top + cellSize * .74f, textPaint)
-                    textPaint.clearShadowLayer()
-                }
+                val inset = (cellSize * .08f).coerceAtLeast(1f)
+                drawRect(
+                    Color(0xFF0B6B2B),
+                    Offset(left + inset, top + inset),
+                    androidx.compose.ui.geometry.Size(cellSize - inset * 2, cellSize - inset * 2),
+                    style = Stroke((cellSize * .08f).coerceIn(1.2f, 4f))
+                )
+                textPaint.color = android.graphics.Color.WHITE
+                textPaint.setShadowLayer((cellSize * .08f).coerceAtLeast(1f), 0f, 0f, android.graphics.Color.BLACK)
+                textPaint.textSize = cellSize * .72f
+                drawContext.canvas.nativeCanvas.drawText("✓", left + cellSize * .5f, top + cellSize * .74f, textPaint)
+                textPaint.clearShadowLayer()
             } else if (!pc.erased && cellSize >= 11f && isFocused) {
                 textPaint.color = symbolColor(pattern.palette[pc.colorIndex].rgb)
                 textPaint.textSize = cellSize * .52f
                 drawContext.canvas.nativeCanvas.drawText(pc.symbol, left + cellSize * .5f, top + cellSize * .70f, textPaint)
             }
 
-            if (cellSize >= 2.5f) {
-                drawRect(
-                    Color.Black.copy(alpha = .24f),
-                    Offset(left, top),
-                    androidx.compose.ui.geometry.Size(cellSize, cellSize),
-                    style = Stroke(if (cellSize >= 10f) .65f else .4f)
-                )
-            }
+            drawRect(
+                Color.Black.copy(alpha = .24f),
+                Offset(left, top),
+                androidx.compose.ui.geometry.Size(cellSize, cellSize),
+                style = Stroke(if (cellSize >= 10f) .65f else .4f)
+            )
         }
-
-        // Bold 10×10 guide lines make large patterns easier to count while stitching.
-        if (cellSize >= 4f) {
-            val guideWidth = if (cellSize >= 14f) 2.4f else 1.7f
-            for (x in 0..pattern.width step 10) {
-                val lineX = offsetX + x * cellSize
-                drawLine(
-                    Color.Black.copy(alpha = .62f),
-                    Offset(lineX, offsetY),
-                    Offset(lineX, offsetY + pattern.height * cellSize),
-                    strokeWidth = guideWidth
-                )
-            }
-            for (y in 0..pattern.height step 10) {
-                val lineY = offsetY + y * cellSize
-                drawLine(
-                    Color.Black.copy(alpha = .62f),
-                    Offset(offsetX, lineY),
-                    Offset(offsetX + pattern.width * cellSize, lineY),
-                    strokeWidth = guideWidth
-                )
-            }
-        }
+        drawGuideLines()
     }
 }
 
