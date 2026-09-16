@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -659,7 +660,7 @@ fun PatternScreen(
             }
         )
         Text(
-            "1 палец — прокрутка страницы • 2 пальца — масштаб • схема закреплена",
+            "По размеру: 1 палец — прокрутка страницы • Увеличено: 1 палец — двигать схему • 2 пальца — масштаб",
             style = MaterialTheme.typography.bodySmall
         )
 
@@ -744,6 +745,12 @@ fun PatternCanvas(
     // completed/erased/recolored cell, so reset only for a new session or explicit fit.
     val currentOnCellTap by rememberUpdatedState(onCellTap)
     val currentOnZoom by rememberUpdatedState(onZoom)
+    // Pan belongs to the viewport, not to the pattern data. Reset only for a new session
+    // or an explicit "fit to screen" action. This keeps editing from snapping the view.
+    var pan by remember(sessionId, viewResetKey) { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(scale, sessionId, viewResetKey) {
+        if (scale <= 1.01f && pan != Offset.Zero) pan = Offset.Zero
+    }
 
     // Fast low-zoom preview: one bitmap pixel represents one stitch. At fit-to-screen this
     // replaces tens of thousands of individual drawRect calls with a single bitmap draw.
@@ -787,43 +794,74 @@ fun PatternCanvas(
                         size.width / pattern.width,
                         size.height / pattern.height
                     ) * scale
-                    val offsetX = (size.width - pattern.width * cellSize) / 2f
-                    val offsetY = (size.height - pattern.height * cellSize) / 2f
+                    val offsetX = (size.width - pattern.width * cellSize) / 2f + pan.x
+                    val offsetY = (size.height - pattern.height * cellSize) / 2f + pan.y
                     if (cellSize <= 0f) return@detectTapGestures
                     val x = floor((offset.x - offsetX) / cellSize).toInt()
                     val y = floor((offset.y - offsetY) / cellSize).toInt()
                     if (x in 0 until pattern.width && y in 0 until pattern.height) currentOnCellTap(x, y)
                 }
             }
-            .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
-                // One finger remains available to the page. Two fingers change chart zoom.
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val pressed = event.changes.filter { it.pressed }
-                        if (pressed.size >= 2) {
-                            val a = pressed[0]
-                            val b = pressed[1]
-                            val currentDx = a.position.x - b.position.x
-                            val currentDy = a.position.y - b.position.y
-                            val previousDx = a.previousPosition.x - b.previousPosition.x
-                            val previousDy = a.previousPosition.y - b.previousPosition.y
-                            val currentDistance = kotlin.math.sqrt(currentDx * currentDx + currentDy * currentDy)
-                            val previousDistance = kotlin.math.sqrt(previousDx * previousDx + previousDy * previousDy)
-                            val zoom = if (previousDistance > 0.01f) currentDistance / previousDistance else 1f
-                            if (zoom.isFinite() && zoom > 0f) currentOnZoom(zoom)
-                            pressed.forEach { it.consume() }
+            .then(
+                if (scale > 1.01f) {
+                    // When the chart is enlarged, one finger pans the chart itself instead of
+                    // scrolling the whole page. detectTransformGestures consumes the drag, so
+                    // the parent verticalScroll does not steal the gesture. Two fingers still
+                    // zoom and may pan at the same time.
+                    Modifier.pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
+                        detectTransformGestures(panZoomLock = false) { _, panChange, zoom, _ ->
+                            if (panChange != Offset.Zero) {
+                                val cellSize = minOf(
+                                    size.width / pattern.width,
+                                    size.height / pattern.height
+                                ) * scale
+                                val contentWidth = pattern.width * cellSize
+                                val contentHeight = pattern.height * cellSize
+                                val maxPanX = ((contentWidth - size.width) / 2f).coerceAtLeast(0f)
+                                val maxPanY = ((contentHeight - size.height) / 2f).coerceAtLeast(0f)
+                                pan = Offset(
+                                    (pan.x + panChange.x).coerceIn(-maxPanX, maxPanX),
+                                    (pan.y + panChange.y).coerceIn(-maxPanY, maxPanY)
+                                )
+                            }
+                            if (zoom.isFinite() && zoom > 0f && kotlin.math.abs(zoom - 1f) > 0.001f) {
+                                currentOnZoom(zoom)
+                            }
+                        }
+                    }
+                } else {
+                    // At fit-to-screen scale a one-finger swipe still scrolls the page; only a
+                    // genuine two-finger gesture is consumed for zoom.
+                    Modifier.pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val pressed = event.changes.filter { it.pressed }
+                                if (pressed.size >= 2) {
+                                    val a = pressed[0]
+                                    val b = pressed[1]
+                                    val currentDx = a.position.x - b.position.x
+                                    val currentDy = a.position.y - b.position.y
+                                    val previousDx = a.previousPosition.x - b.previousPosition.x
+                                    val previousDy = a.previousPosition.y - b.previousPosition.y
+                                    val currentDistance = kotlin.math.sqrt(currentDx * currentDx + currentDy * currentDy)
+                                    val previousDistance = kotlin.math.sqrt(previousDx * previousDx + previousDy * previousDy)
+                                    val zoom = if (previousDistance > 0.01f) currentDistance / previousDistance else 1f
+                                    if (zoom.isFinite() && zoom > 0f) currentOnZoom(zoom)
+                                    pressed.forEach { it.consume() }
+                                }
+                            }
                         }
                     }
                 }
-            }
+            )
     ) {
         val cellSize = minOf(
             size.width / pattern.width,
             size.height / pattern.height
         ) * scale
-        val offsetX = (size.width - pattern.width * cellSize) / 2f
-        val offsetY = (size.height - pattern.height * cellSize) / 2f
+        val offsetX = (size.width - pattern.width * cellSize) / 2f + pan.x
+        val offsetY = (size.height - pattern.height * cellSize) / 2f + pan.y
 
         fun drawGuideLines() {
             if (cellSize < 4f) return
