@@ -309,22 +309,24 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
 
         try {
             val result = withContext(Dispatchers.Default) {
-                val bmp = context.contentResolver.openInputStream(uri).use { input ->
-                    requireNotNull(input) { "Не удалось открыть изображение" }
-                    requireNotNull(BitmapFactory.decodeStream(input)) {
-                        "Не удалось декодировать изображение"
-                    }
-                }
-
                 val w = width.toInt().coerceAtMost(if (isPro) ReleaseConfig.PRO_MAX_WIDTH else ReleaseConfig.FREE_MAX_WIDTH)
                 val c = colors.toInt().coerceAtMost(if (isPro) ReleaseConfig.PRO_MAX_COLORS else ReleaseConfig.FREE_MAX_COLORS)
 
-                PatternEngine.generate(
-                    bmp,
-                    w,
-                    c,
-                    PatternOptions(cleanupIsolatedStitches = cleanupSingles)
-                )
+                // A stitch grid never needs the full camera/photo resolution. Decode a bounded
+                // source close to the useful working size so 12-50 MP photos do not consume
+                // hundreds of MB before the pattern is even generated.
+                val decodeSide = (w * 4).coerceIn(768, 1600)
+                val bmp = decodeBitmapForPattern(context, uri, maxSide = decodeSide)
+                try {
+                    PatternEngine.generate(
+                        bmp,
+                        w,
+                        c,
+                        PatternOptions(cleanupIsolatedStitches = cleanupSingles)
+                    )
+                } finally {
+                    if (!bmp.isRecycled) bmp.recycle()
+                }
             }
 
             pattern = result

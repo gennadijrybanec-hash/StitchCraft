@@ -133,14 +133,18 @@ object PatternEngine {
         // direct resize to the stitch grid.
         val pixels = downsampleForStitches(bitmap, targetWidth, targetHeight)
 
-        val candidatePalette = selectPalette(pixels, effectiveMaxColors)
+        // Convert the stitch-grid pixels to Lab once. CIEDE2000 is intentionally used for
+        // colour quality, but repeated RGB->Lab conversion was a major cost on 200-300 stitch
+        // patterns with many colours.
+        val pixelLabs = Array(pixels.size) { i -> rgbToLab(pixels[i]) }
+        val candidatePalette = selectPalette(pixelLabs, effectiveMaxColors)
         val labs = candidatePalette.map { paletteLabs.getValue(it) }
-        var indices = IntArray(pixels.size) { i -> nearestLab(rgbToLab(pixels[i]), labs) }
+        var indices = IntArray(pixelLabs.size) { i -> nearestLab(pixelLabs[i], labs) }
         if (options.cleanupIsolatedStitches) {
             // Two conservative passes remove isolated speckles without aggressively blurring
             // boundaries. The second pass only sees changes accepted by the first pass.
             repeat(2) {
-                indices = cleanupIsolated(indices, targetWidth, targetHeight, pixels, labs)
+                indices = cleanupIsolated(indices, targetWidth, targetHeight, pixelLabs, labs)
             }
         }
         return compactPattern(targetWidth, targetHeight, candidatePalette, indices)
@@ -175,29 +179,63 @@ object PatternEngine {
         return out
     }
 
-    private fun selectPalette(pixels: IntArray, maxColors: Int): List<ThreadColor> {
-        val sampleStep = (pixels.size / 1600).coerceAtLeast(1)
-        val samples = pixels.filterIndexed { index, _ -> index % sampleStep == 0 }.map(::rgbToLab)
+    private fun selectPalette(pixelLabs: Array<Lab>, maxColors: Int): List<ThreadColor> {
+        // Work on at most ~1600 representative stitches. Keep the best distance to the current
+        // palette incrementally; the old implementation recomputed distance to every already
+        // selected colour for every candidate on every round (roughly O(k²)).
+        val sampleStep = (pixelLabs.size / 1600).coerceAtLeast(1)
+        val samples = ArrayList<Lab>((pixelLabs.size + sampleStep - 1) / sampleStep)
+        var sampleIndex = 0
+        while (sampleIndex < pixelLabs.size) {
+            samples += pixelLabs[sampleIndex]
+            sampleIndex += sampleStep
+        }
+
         val all = ThreadPalette.dmcApprox
+        if (samples.isEmpty()) return all.take(maxColors)
 
         val selected = mutableListOf<ThreadColor>()
-        val first = all.minBy { thread ->
-            val lab = paletteLabs.getValue(thread)
-            samples.sumOf { cieDe2000(it, lab) }
+        val selectedMask = BooleanArray(all.size)
+        val bestDistance = DoubleArray(samples.size) { Double.POSITIVE_INFINITY }
+
+        val firstIndex = all.indices.minBy { paletteIndex ->
+            val lab = paletteLabs.getValue(all[paletteIndex])
+            var sum = 0.0
+            for (sample in samples) sum += cieDe2000(sample, lab)
+            sum
         }
-        selected += first
+        selected += all[firstIndex]
+        selectedMask[firstIndex] = true
+
+        run {
+            val lab = paletteLabs.getValue(all[firstIndex])
+            for (i in samples.indices) bestDistance[i] = cieDe2000(samples[i], lab)
+        }
 
         while (selected.size < maxColors) {
-            val selectedLabs = selected.map { paletteLabs.getValue(it) }
-            val best = all.asSequence().filter { it !in selected }.maxByOrNull { candidate ->
-                val candidateLab = paletteLabs.getValue(candidate)
-                samples.sumOf { sample ->
-                    val old = selectedLabs.minOf { cieDe2000(sample, it) }
-                    val newer = min(old, cieDe2000(sample, candidateLab))
-                    old - newer
+            var bestCandidate = -1
+            var bestGain = Double.NEGATIVE_INFINITY
+            for (candidateIndex in all.indices) {
+                if (selectedMask[candidateIndex]) continue
+                val candidateLab = paletteLabs.getValue(all[candidateIndex])
+                var gain = 0.0
+                for (i in samples.indices) {
+                    val candidateDistance = cieDe2000(samples[i], candidateLab)
+                    if (candidateDistance < bestDistance[i]) gain += bestDistance[i] - candidateDistance
                 }
-            } ?: break
-            selected += best
+                if (gain > bestGain) {
+                    bestGain = gain
+                    bestCandidate = candidateIndex
+                }
+            }
+            if (bestCandidate < 0) break
+            selected += all[bestCandidate]
+            selectedMask[bestCandidate] = true
+            val addedLab = paletteLabs.getValue(all[bestCandidate])
+            for (i in samples.indices) {
+                val d = cieDe2000(samples[i], addedLab)
+                if (d < bestDistance[i]) bestDistance[i] = d
+            }
         }
         return selected
     }
@@ -206,7 +244,7 @@ object PatternEngine {
         source: IntArray,
         width: Int,
         height: Int,
-        pixels: IntArray,
+        pixelLabs: Array<Lab>,
         paletteLabs: List<Lab>
     ): IntArray {
         val out = source.copyOf()
@@ -231,7 +269,7 @@ object PatternEngine {
 
             // Only simplify when the replacement is still a plausible perceptual match.
             // CIEDE2000 keeps this much safer than comparing raw RGB distances.
-            val pxLab = rgbToLab(pixels[pos])
+            val pxLab = pixelLabs[pos]
             val oldD = cieDe2000(pxLab, paletteLabs[current])
             val newD = cieDe2000(pxLab, paletteLabs[dominant.key])
             val tolerance = if (sameCount == 0) 4.0 else 2.5
@@ -241,12 +279,21 @@ object PatternEngine {
     }
 
     private fun compactPattern(width: Int, height: Int, palette: List<ThreadColor>, indices: IntArray): StitchPattern {
-        val used = indices.toSet().sorted()
-        val remap = used.withIndex().associate { (newIndex, oldIndex) -> oldIndex to newIndex }
-        val compactPalette = used.map { palette[it] }
-        val cells = indices.map { old ->
-            val i = remap.getValue(old)
-            PatternCell(i, symbols[i])
+        val usedMask = BooleanArray(palette.size)
+        for (index in indices) if (index in usedMask.indices) usedMask[index] = true
+
+        val remap = IntArray(palette.size) { -1 }
+        val compactPalette = ArrayList<ThreadColor>(palette.size)
+        for (oldIndex in palette.indices) {
+            if (!usedMask[oldIndex]) continue
+            remap[oldIndex] = compactPalette.size
+            compactPalette += palette[oldIndex]
+        }
+
+        val cells = ArrayList<PatternCell>(indices.size)
+        for (oldIndex in indices) {
+            val newIndex = remap[oldIndex]
+            cells += PatternCell(newIndex, symbols[newIndex])
         }
         return StitchPattern(width, height, compactPalette, cells)
     }
