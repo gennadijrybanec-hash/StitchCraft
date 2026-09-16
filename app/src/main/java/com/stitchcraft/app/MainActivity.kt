@@ -507,6 +507,7 @@ fun PatternScreen(
     var selectedColor by remember(sessionId) { mutableIntStateOf(0) }
     var focusColor by remember(sessionId) { mutableIntStateOf(-1) }
     var viewResetKey by remember(sessionId) { mutableIntStateOf(0) }
+    var viewMenuExpanded by remember(sessionId) { mutableStateOf(false) }
     val undo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
     val redo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
 
@@ -581,19 +582,82 @@ fun PatternScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Primary edit actions must always stay on-screen. Rare zoom actions live in a compact menu
+        // instead of forcing the toolbar to overflow horizontally on phones such as Mi 8.
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            FilterChip(selected = tool == EditTool.COMPLETE, onClick = { tool = EditTool.COMPLETE }, label = { Text("✓ Готово") })
-            FilterChip(selected = tool == EditTool.COLOR, onClick = { tool = EditTool.COLOR }, label = { Text("✎ Цвет") })
-            FilterChip(selected = tool == EditTool.ERASE, onClick = { tool = EditTool.ERASE }, label = { Text("⌫ Ластик") })
-            OutlinedButton(onClick = ::undoEdit, enabled = undo.isNotEmpty()) { Text("↶") }
-            OutlinedButton(onClick = ::redoEdit, enabled = redo.isNotEmpty()) { Text("↷") }
-            OutlinedButton(onClick = { scale = (scale / 2f).coerceAtLeast(.6f) }) { Text("−") }
-            OutlinedButton(onClick = { scale = 1f; viewResetKey++ }) { Text("По размеру") }
-            OutlinedButton(onClick = { scale = (scale * 2f).coerceAtMost(20f) }) { Text("+") }
-            Text("${(scale * 100).toInt()}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 12.dp))
+            FilterChip(
+                selected = tool == EditTool.COMPLETE,
+                onClick = { tool = EditTool.COMPLETE },
+                label = { Text("✓ Готово") },
+                modifier = Modifier.weight(1f)
+            )
+            FilterChip(
+                selected = tool == EditTool.COLOR,
+                onClick = { tool = EditTool.COLOR },
+                label = { Text("✎ Цвет") },
+                modifier = Modifier.weight(1f)
+            )
+            FilterChip(
+                selected = tool == EditTool.ERASE,
+                onClick = { tool = EditTool.ERASE },
+                label = { Text("⌫ Ластик") },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = ::undoEdit,
+                enabled = undo.isNotEmpty(),
+                modifier = Modifier.weight(1f)
+            ) { Text("↶ Назад") }
+            OutlinedButton(
+                onClick = ::redoEdit,
+                enabled = redo.isNotEmpty(),
+                modifier = Modifier.weight(1f)
+            ) { Text("↷ Вперёд") }
+
+            Box {
+                OutlinedButton(onClick = { viewMenuExpanded = true }) { Text("⋮ Меню") }
+                DropdownMenu(
+                    expanded = viewMenuExpanded,
+                    onDismissRequest = { viewMenuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Уменьшить") },
+                        onClick = {
+                            scale = (scale / 2f).coerceAtLeast(.6f)
+                            viewMenuExpanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("По размеру") },
+                        onClick = {
+                            scale = 1f
+                            viewResetKey++
+                            viewMenuExpanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Увеличить") },
+                        onClick = {
+                            scale = (scale * 2f).coerceAtMost(20f)
+                            viewMenuExpanded = false
+                        }
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Масштаб: ${(scale * 100).toInt()}%") },
+                        onClick = { viewMenuExpanded = false }
+                    )
+                }
+            }
         }
 
         if (tool == EditTool.COLOR) {
