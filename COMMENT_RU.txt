@@ -1,1 +1,1 @@
-StitchCraft v139 — добавлены RU / UA / EN, язык по системе Android
+StitchCraft v140 — ручной выбор языка: Системный / Русский / Українська / English

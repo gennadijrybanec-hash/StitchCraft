@@ -20,4 +20,13 @@
 <string name="billing_connecting">Connecting to Google Play…</string><string name="billing_disconnected">Google Play connection lost. Try again.</string><string name="billing_unavailable">Google Play Billing is unavailable</string><string name="billing_pro_failed">Could not load StitchCraft Pro</string><string name="billing_product_missing">Google Play is not returning product %1$s yet. Make sure the app was installed from the Google Play test track and the tester account is being used.</string><string name="billing_no_offer">No active purchase option for StitchCraft Pro was found in Google Play.</string><string name="billing_launch_failed">Could not open the Google Play purchase window</string><string name="billing_play_unavailable">Google Play is currently unavailable. Try again.</string><string name="billing_restored">Pro purchase restored</string><string name="billing_not_found">Pro purchase not found</string><string name="billing_check_failed">Could not verify purchase</string><string name="billing_canceled">Purchase canceled</string><string name="billing_not_completed">Purchase not completed</string><string name="billing_code">code %1$d</string>
 <string name="pdf_cells">Cells X: %1$d–%2$d, Y: %3$d–%4$d</string><string name="pdf_fabric">Aida %1$d • %2$.1f × %3$.1f cm</string><string name="pdf_more_colors">+ %1$d colors. Full legend follows the chart.</string><string name="pdf_full_legend_after">Full legend follows the chart.</string><string name="pdf_full_legend_title">StitchCraft — full legend — %1$d/%2$d</string>
 
+
+    <string name="app_language">App language</string>
+    <string name="app_language_value">Language: %1$s</string>
+    <string name="choose_language">Choose app language</string>
+    <string name="language_system">System</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_ukrainian">Українська</string>
+    <string name="language_english">English</string>
+
 </resources>

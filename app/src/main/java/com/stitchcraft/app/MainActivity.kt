@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.content.Intent
+import android.content.Context
+import android.content.res.Configuration
 import java.net.URLEncoder
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -66,7 +68,25 @@ private fun adaptiveCanvasHeight() = when {
     LocalConfiguration.current.screenWidthDp >= 600 -> 440.dp
     else -> 360.dp
 }
+private const val APP_LANGUAGE_PREF = "app_language"
+
+private fun localizedContext(base: Context): Context {
+    val code = base.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        .getString(APP_LANGUAGE_PREF, "system") ?: "system"
+    if (code == "system") return base
+    val locale = Locale.forLanguageTag(code)
+    Locale.setDefault(locale)
+    val config = Configuration(base.resources.configuration)
+    config.setLocale(locale)
+    config.setLayoutDirection(locale)
+    return base.createConfigurationContext(config)
+}
+
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(localizedContext(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -1168,11 +1188,57 @@ fun ProScreen(
         OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text(stringResource(R.string.restore_purchase)) }
         Text(stringResource(R.string.pro_purchase_info), style = MaterialTheme.typography.bodySmall)
 
+        val context = LocalContext.current
+        val activity = context as? Activity
+        var showLanguageDialog by remember { mutableStateOf(false) }
+        val languageCode = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+            .getString(APP_LANGUAGE_PREF, "system") ?: "system"
+        val languageName = when (languageCode) {
+            "ru" -> stringResource(R.string.language_russian)
+            "uk" -> stringResource(R.string.language_ukrainian)
+            "en" -> stringResource(R.string.language_english)
+            else -> stringResource(R.string.language_system)
+        }
+        OutlinedButton(
+            onClick = { showLanguageDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(stringResource(R.string.app_language_value, languageName)) }
+
+        if (showLanguageDialog) {
+            val options = listOf(
+                "system" to stringResource(R.string.language_system),
+                "ru" to stringResource(R.string.language_russian),
+                "uk" to stringResource(R.string.language_ukrainian),
+                "en" to stringResource(R.string.language_english)
+            )
+            AlertDialog(
+                onDismissRequest = { showLanguageDialog = false },
+                title = { Text(stringResource(R.string.choose_language)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        options.forEach { (code, label) ->
+                            TextButton(
+                                onClick = {
+                                    context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+                                        .edit().putString(APP_LANGUAGE_PREF, code).apply()
+                                    showLanguageDialog = false
+                                    activity?.recreate()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (code == languageCode) "✓ $label" else label)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         Text(stringResource(R.string.about), fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.about_desc), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.support, ReleaseConfig.SUPPORT_EMAIL), style = MaterialTheme.typography.bodySmall)
-        val context = LocalContext.current
         OutlinedButton(
             onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ReleaseConfig.PRIVACY_POLICY_URL))) } },
             modifier = Modifier.fillMaxWidth()

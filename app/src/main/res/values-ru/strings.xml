@@ -8,4 +8,13 @@
 <string name="billing_connecting">Подключение к Google Play…</string><string name="billing_disconnected">Связь с Google Play прервана. Повторите попытку.</string><string name="billing_unavailable">Google Play Billing недоступен</string><string name="billing_pro_failed">Не удалось получить StitchCraft Pro</string><string name="billing_product_missing">Google Play пока не возвращает товар %1$s. Проверьте, что приложение установлено из тестовой версии Google Play и используется аккаунт тестировщика.</string><string name="billing_no_offer">Для StitchCraft Pro не найден активный способ покупки в Google Play.</string><string name="billing_launch_failed">Не удалось открыть окно покупки Google Play</string><string name="billing_play_unavailable">Google Play пока недоступен. Повторите попытку.</string><string name="billing_restored">Покупка Pro восстановлена</string><string name="billing_not_found">Покупка Pro не найдена</string><string name="billing_check_failed">Не удалось проверить покупку</string><string name="billing_canceled">Покупка отменена</string><string name="billing_not_completed">Покупка не завершена</string><string name="billing_code">код %1$d</string>
 <string name="pdf_cells">Ячейки X: %1$d–%2$d, Y: %3$d–%4$d</string><string name="pdf_fabric">Aida %1$d • %2$.1f × %3$.1f см</string><string name="pdf_more_colors">+ %1$d цветов. Полная легенда — после схемы.</string><string name="pdf_full_legend_after">Полная легенда — после схемы.</string><string name="pdf_full_legend_title">StitchCraft — полная легенда — %1$d/%2$d</string>
 
+
+    <string name="app_language">Язык приложения</string>
+    <string name="app_language_value">Язык приложения: %1$s</string>
+    <string name="choose_language">Выберите язык приложения</string>
+    <string name="language_system">Системный</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_ukrainian">Українська</string>
+    <string name="language_english">English</string>
+
 </resources>
