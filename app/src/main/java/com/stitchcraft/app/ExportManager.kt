@@ -48,9 +48,9 @@ object ExportManager {
             val endX = minOf(startX + cellsPerPage, pattern.width)
             val endY = minOf(startY + cellsPerPage, pattern.height)
             paint.textSize = 9f
-            canvas.drawText("Cells X: ${startX + 1}–$endX, Y: ${startY + 1}–$endY", margin, 42f, paint)
+            canvas.drawText(context.getString(R.string.pdf_cells, startX + 1, endX, startY + 1, endY), margin, 42f, paint)
             paint.textSize = 10f
-            canvas.drawText("Aida $fabricCount • %.1f × %.1f cm".format(finishedWidthCm, finishedHeightCm), margin, 56f, paint)
+            canvas.drawText(context.getString(R.string.pdf_fabric, fabricCount, finishedWidthCm, finishedHeightCm), margin, 56f, paint)
 
             val cell = minOf((pageWidth - margin * 2) / (endX - startX), 600f / (endY - startY))
             val top = 70f
@@ -93,9 +93,9 @@ object ExportManager {
                 canvas.drawText("${PatternEngine.symbolForIndex(i)} ${c.code}", margin + col * 130f, legendTop + row * 18f, paint)
             }
             if (usedOnPage.size > 20) {
-                canvas.drawText("+ ${usedOnPage.size - 20} цветов. Полная легенда — после схемы.", margin, 792f, paint)
+                canvas.drawText(context.getString(R.string.pdf_more_colors, usedOnPage.size - 20), margin, 792f, paint)
             } else {
-                canvas.drawText("Полная легенда — после схемы.", margin, 792f, paint)
+                canvas.drawText(context.getString(R.string.pdf_full_legend_after), margin, 792f, paint)
             }
 
             pdf.finishPage(page)
@@ -110,7 +110,7 @@ object ExportManager {
             paint.style = Paint.Style.FILL
             paint.color = Color.BLACK
             paint.textSize = 14f
-            canvas.drawText("StitchCraft — полная легенда — $pageNo/$totalPages", margin, 30f, paint)
+            canvas.drawText(context.getString(R.string.pdf_full_legend_title, pageNo, totalPages), margin, 30f, paint)
             paint.textSize = 10f
             canvas.drawText("$projectName • Aida $fabricCount • ${pattern.width}×${pattern.height}", margin, 50f, paint)
 

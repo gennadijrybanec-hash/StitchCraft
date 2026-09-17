@@ -132,7 +132,7 @@ fabricCount = fabricCount
 
         val now = System.currentTimeMillis()
         val id = "p_${now}_${(1000..9999).random()}"
-        val name = root.optString("name", "Импортированный проект").trim().ifBlank { "Импортированный проект" }.take(60)
+        val name = root.optString("name", context.getString(R.string.imported_project)).trim().ifBlank { context.getString(R.string.imported_project) }.take(60)
         val fabric = root.optInt("fabricCount", 14).coerceIn(6, 40)
         File(patternsDir, "$id.json").writeText(data.toString())
 

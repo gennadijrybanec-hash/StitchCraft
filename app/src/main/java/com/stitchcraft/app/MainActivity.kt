@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
@@ -87,17 +88,17 @@ class MainActivity : ComponentActivity() {
 private fun decodeBitmapForPattern(context: android.content.Context, uri: Uri, maxSide: Int = 2048): android.graphics.Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri).use { input ->
-        requireNotNull(input) { "Не удалось открыть изображение" }
+        requireNotNull(input) { context.getString(R.string.image_open_failed) }
         BitmapFactory.decodeStream(input, null, bounds)
     }
-    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Не удалось прочитать размер изображения" }
+    require(bounds.outWidth > 0 && bounds.outHeight > 0) { context.getString(R.string.image_size_failed) }
 
     var sample = 1
     while (bounds.outWidth / sample > maxSide * 2 || bounds.outHeight / sample > maxSide * 2) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
     return context.contentResolver.openInputStream(uri).use { input ->
-        requireNotNull(input) { "Не удалось открыть изображение" }
-        requireNotNull(BitmapFactory.decodeStream(input, null, options)) { "Не удалось декодировать изображение" }
+        requireNotNull(input) { context.getString(R.string.image_open_failed) }
+        requireNotNull(BitmapFactory.decodeStream(input, null, options)) { context.getString(R.string.image_decode_failed) }
     }
 }
 
@@ -168,7 +169,7 @@ val pngSaveLauncher = rememberLauncherForActivityResult(
                 input.copyTo(output)
             }
         }
-        message = "PNG сохранён"
+        message = context.getString(R.string.png_saved)
     }
     pendingPngFile = null
 }
@@ -184,7 +185,7 @@ val pdfSaveLauncher = rememberLauncherForActivityResult(
                 input.copyTo(output)
             }
         }
-        message = "PDF сохранён"
+        message = context.getString(R.string.pdf_saved)
     }
     pendingPdfFile = null
 }
@@ -201,7 +202,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                 input.copyTo(output)
             }
         }
-        message = "CSV сохранён"
+        message = context.getString(R.string.csv_saved)
     }
     pendingCsvFile = null
 }
@@ -218,9 +219,9 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             val bytes = store.exportProject(project)
             if (bytes != null) {
                 runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
-                    .onSuccess { message = "Проект экспортирован" }
-                    .onFailure { message = "Не удалось экспортировать проект" }
-            } else message = "Не удалось экспортировать проект"
+                    .onSuccess { message = context.getString(R.string.project_exported) }
+                    .onFailure { message = context.getString(R.string.project_export_failed) }
+            } else message = context.getString(R.string.project_export_failed)
         }
         pendingProjectExport = null
     }
@@ -234,8 +235,8 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             }.getOrNull()
             if (imported != null) {
                 projects = store.list()
-                message = "Проект «${imported.name}» импортирован"
-            } else message = "Файл не является проектом StitchCraft"
+                message = context.getString(R.string.project_imported, imported.name)
+            } else message = context.getString(R.string.not_stitchcraft_project)
         }
     }
     val billing = remember {
@@ -271,9 +272,9 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                 activeProject = imported
                 editingSession++
                 tab = 1
-                message = "Проект «${imported.name}» открыт"
+                message = context.getString(R.string.project_opened, imported.name)
             }
-        } else message = "Файл не является проектом StitchCraft"
+        } else message = context.getString(R.string.not_stitchcraft_project)
     }
 
     Scaffold(
@@ -286,9 +287,9 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             NavigationBar {
-                NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Text("✚") }, label = { Text("Создать") })
-                NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Text("▦") }, label = { Text("Схема") })
-                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Text("☰") }, label = { Text("Проекты") })
+                NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Text("✚") }, label = { Text(stringResource(R.string.nav_create)) })
+                NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Text("▦") }, label = { Text(stringResource(R.string.nav_pattern)) })
+                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Text("☰") }, label = { Text(stringResource(R.string.nav_projects)) })
                 NavigationBarItem(selected = tab == 3, onClick = { tab = 3 }, icon = { Text("★") }, label = { Text("Pro") })
             }
 
@@ -335,7 +336,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             tab = 1
 
         } catch (e: Exception) {
-            message = e.message?.takeIf { it.isNotBlank() } ?: "Не удалось обработать изображение"
+            message = e.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.image_process_failed)
         } finally {
             busy = false
         }
@@ -354,7 +355,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                         val name = existing?.name ?: "Pattern_" + SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
                         activeProject = store.save(name, p, existing?.id, fabricCount)
                         projects = store.list()
-                        message = "Проект сохранён • прогресс ${p.progressPercent()}%"
+                        message = context.getString(R.string.project_saved_progress, p.progressPercent())
                     },
                     onPdf = { p ->
                         val f = ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}", fabricCount)
@@ -436,17 +437,17 @@ fun CreateScreen(
         Modifier.padding(pagePadding).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp)
     ) {
-        Text("Фото → схема для вышивки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Выберите изображение. StitchCraft уменьшит его до сетки, сопоставит оттенки с палитрой ниток и назначит каждому цвету символ.")
+        Text(stringResource(R.string.create_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.create_description))
         Button(onClick = onPick, Modifier.fillMaxWidth()) {
-            Text(if (uri == null) "Выбрать изображение" else "Выбрать другое изображение")
+            Text(if (uri == null) stringResource(R.string.choose_image) else stringResource(R.string.choose_other_image))
         }
-        Text(if (uri == null) "Изображение не выбрано" else "Изображение выбрано ✓")
-        Text("Ширина схемы: ${width.toInt()} крестиков")
+        Text(if (uri == null) stringResource(R.string.image_not_selected) else stringResource(R.string.image_selected))
+        Text(stringResource(R.string.pattern_width, width.toInt()))
         Slider(width, onValueChange = onWidth, valueRange = 20f..if (isPro) ReleaseConfig.PRO_MAX_WIDTH.toFloat() else ReleaseConfig.FREE_MAX_WIDTH.toFloat(), steps = 22)
-        Text("Количество цветов: ${colors.toInt()}")
+        Text(stringResource(R.string.color_count, colors.toInt()))
         Slider(colors, onValueChange = onColors, valueRange = 4f..if (isPro) ReleaseConfig.PRO_MAX_COLORS.toFloat() else ReleaseConfig.FREE_MAX_COLORS.toFloat(), steps = 12)
-        Text("Канва: Aida $fabricCount")
+        Text(stringResource(R.string.fabric_aida, fabricCount))
 
 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     listOf(14, 16, 18).forEach { count ->
@@ -460,25 +461,25 @@ Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (compact) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Упростить одиночные крестики", modifier = Modifier.weight(1f), maxLines = 2)
+                    Text(stringResource(R.string.cleanup_singles), modifier = Modifier.weight(1f), maxLines = 2)
                     Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
                 }
-                Text("Убирает часть цветового шума и делает схему удобнее для вышивания.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.cleanup_singles_desc), style = MaterialTheme.typography.bodySmall)
             }
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(Modifier.weight(1f)) {
-                    Text("Упростить одиночные крестики")
-                    Text("Убирает часть цветового шума и делает схему удобнее для вышивания.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.cleanup_singles))
+                    Text(stringResource(R.string.cleanup_singles_desc), style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(checked = cleanupSingles, onCheckedChange = onCleanup)
             }
         }
         if (!isPro) {
-            Text("Free: до ${ReleaseConfig.FREE_MAX_WIDTH} крестиков по ширине и ${ReleaseConfig.FREE_MAX_COLORS} цветов. Pro снимает ограничения и включает экспорт.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.free_limits, ReleaseConfig.FREE_MAX_WIDTH, ReleaseConfig.FREE_MAX_COLORS), style = MaterialTheme.typography.bodySmall)
         }
         Button(onClick = onGenerate, enabled = uri != null && !busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Генерация…" else "Создать схему")
+            Text(if (busy) stringResource(R.string.generating) else stringResource(R.string.create_pattern))
         }
     }
 }
@@ -496,7 +497,7 @@ fun PatternScreen(
     onPng: (StitchPattern) -> Unit
 ) {
     if (pattern == null) {
-        Box(Modifier.fillMaxSize().padding(24.dp)) { Text("Сначала создайте схему из изображения.") }
+        Box(Modifier.fillMaxSize().padding(24.dp)) { Text(stringResource(R.string.create_first)) }
         return
     }
 
@@ -569,14 +570,9 @@ fun PatternScreen(
             .padding(adaptivePagePadding()),
         verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 6.dp else 8.dp)
     ) {
-        Text("${pattern.width} × ${pattern.height} • ${pattern.palette.size} цветов", fontWeight = FontWeight.Bold)
-        Text(
-    "Канва Aida $fabricCount • %.1f × %.1f см".format(
-        finishedWidthCm,
-        finishedHeightCm
-    )
-)
-        Text("Вышито: $done из $total • ${pattern.progressPercent()}%", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.pattern_summary, pattern.width, pattern.height, pattern.palette.size), fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.fabric_dimensions, fabricCount, finishedWidthCm, finishedHeightCm))
+        Text(stringResource(R.string.progress, done, total, pattern.progressPercent()), style = MaterialTheme.typography.bodyMedium)
         LinearProgressIndicator(
             progress = { if (total == 0) 0f else done.toFloat() / total.toFloat() },
             modifier = Modifier.fillMaxWidth()
@@ -593,19 +589,19 @@ fun PatternScreen(
             FilterChip(
                 selected = tool == EditTool.COMPLETE,
                 onClick = { tool = EditTool.COMPLETE },
-                label = { Text("✓ Отметить", maxLines = 1, softWrap = false) },
+                label = { Text(stringResource(R.string.tool_mark), maxLines = 1, softWrap = false) },
                 modifier = Modifier.weight(1f).height(48.dp)
             )
             FilterChip(
                 selected = tool == EditTool.COLOR,
                 onClick = { tool = EditTool.COLOR },
-                label = { Text("✎ Цвет", maxLines = 1, softWrap = false) },
+                label = { Text(stringResource(R.string.tool_color), maxLines = 1, softWrap = false) },
                 modifier = Modifier.weight(1f).height(48.dp)
             )
             FilterChip(
                 selected = tool == EditTool.ERASE,
                 onClick = { tool = EditTool.ERASE },
-                label = { Text("⌫ Ластик", maxLines = 1, softWrap = false) },
+                label = { Text(stringResource(R.string.tool_eraser), maxLines = 1, softWrap = false) },
                 modifier = Modifier.weight(1f).height(48.dp)
             )
         }
@@ -619,33 +615,33 @@ fun PatternScreen(
                 enabled = undo.isNotEmpty(),
                 modifier = Modifier.weight(1f).height(46.dp),
                 contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("↶ Назад", maxLines = 1, softWrap = false) }
+            ) { Text(stringResource(R.string.undo), maxLines = 1, softWrap = false) }
             OutlinedButton(
                 onClick = ::redoEdit,
                 enabled = redo.isNotEmpty(),
                 modifier = Modifier.weight(1f).height(46.dp),
                 contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("↷ Вперёд", maxLines = 1, softWrap = false) }
+            ) { Text(stringResource(R.string.redo), maxLines = 1, softWrap = false) }
 
             Box(Modifier.weight(1f)) {
                 OutlinedButton(
                     onClick = { viewMenuExpanded = true },
                     modifier = Modifier.fillMaxWidth().height(46.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp)
-                ) { Text("⋮ Меню", maxLines = 1, softWrap = false) }
+                ) { Text(stringResource(R.string.menu), maxLines = 1, softWrap = false) }
                 DropdownMenu(
                     expanded = viewMenuExpanded,
                     onDismissRequest = { viewMenuExpanded = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Уменьшить") },
+                        text = { Text(stringResource(R.string.zoom_out)) },
                         onClick = {
                             scale = (scale / 2f).coerceAtLeast(.6f)
                             viewMenuExpanded = false
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("По размеру") },
+                        text = { Text(stringResource(R.string.fit)) },
                         onClick = {
                             scale = 1f
                             viewResetKey++
@@ -653,7 +649,7 @@ fun PatternScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Увеличить") },
+                        text = { Text(stringResource(R.string.zoom_in)) },
                         onClick = {
                             scale = (scale * 2f).coerceAtMost(20f)
                             viewMenuExpanded = false
@@ -661,7 +657,7 @@ fun PatternScreen(
                     )
                     HorizontalDivider()
                     DropdownMenuItem(
-                        text = { Text("Масштаб: ${(scale * 100).toInt()}%") },
+                        text = { Text(stringResource(R.string.zoom_percent, (scale * 100).toInt())) },
                         onClick = { viewMenuExpanded = false }
                     )
                 }
@@ -690,7 +686,7 @@ fun PatternScreen(
             FilterChip(
                 selected = focusColor < 0,
                 onClick = { focusColor = -1 },
-                label = { Text("Все цвета") }
+                label = { Text(stringResource(R.string.all_colors)) }
             )
             pattern.palette.forEachIndexed { index, thread ->
                 FilterChip(
@@ -731,7 +727,7 @@ fun PatternScreen(
             }
         )
         Text(
-            "По размеру: 1 палец — прокрутка страницы • Увеличено: 1 палец — двигать схему • 2 пальца — масштаб",
+            stringResource(R.string.gesture_hint),
             style = MaterialTheme.typography.bodySmall
         )
 
@@ -744,7 +740,7 @@ fun PatternScreen(
                 Button(
                     onClick = { onSave(pattern) },
                     modifier = Modifier.weight(1f)
-                ) { Text("Сохранить", maxLines = 1, softWrap = false) }
+                ) { Text(stringResource(R.string.save), maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { onPdf(pattern) },
                     enabled = isPro || BuildConfig.DEBUG,
@@ -770,9 +766,9 @@ fun PatternScreen(
         OutlinedButton(
             onClick = { showMaterials = true },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Материалы") }
+        ) { Text(stringResource(R.string.materials)) }
 
-        Text("Палитра", fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.palette), fontWeight = FontWeight.Bold)
         pattern.palette.forEachIndexed { i, c ->
             val count = stats.counts.getOrElse(i) { 0 }
             val completedForColor = stats.completedByColor.getOrElse(i) { 0 }
@@ -786,34 +782,34 @@ fun PatternScreen(
     if (showMaterials) {
         AlertDialog(
             onDismissRequest = { showMaterials = false },
-            title = { Text("Материалы для схемы") },
+            title = { Text(stringResource(R.string.materials_title)) },
             text = {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Канва: Aida $fabricCount • %.1f × %.1f см".format(finishedWidthCm, finishedHeightCm))
+                    Text(stringResource(R.string.fabric_dimensions_colon, fabricCount, finishedWidthCm, finishedHeightCm))
                     OutlinedButton(
                         onClick = { openMaterialSearch(context, "Aida $fabricCount cross stitch fabric buy") },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Найти канву в магазинах") }
+                    ) { Text(stringResource(R.string.find_fabric)) }
 
                     HorizontalDivider()
-                    Text("Нитки DMC", fontWeight = FontWeight.Bold)
-                    Text("Нажмите на цвет, чтобы найти подходящие предложения в интернет-магазинах.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.dmc_threads), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.tap_color_shop), style = MaterialTheme.typography.bodySmall)
                     pattern.palette.forEachIndexed { index, thread ->
                         val count = stats.counts.getOrElse(index) { 0 }
                         OutlinedButton(
                             onClick = { openMaterialSearch(context, "DMC ${thread.code} embroidery floss buy") },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("${PatternEngine.symbolForIndex(index)}  DMC ${thread.code} • $count крестиков")
+                            Text(stringResource(R.string.dmc_crosses, PatternEngine.symbolForIndex(index), thread.code, count))
                         }
                     }
-                    Text("Покупка открывается во внешнем браузере. StitchCraft не передаёт изображения или проекты магазинам.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.external_shop_notice), style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(onClick = { showMaterials = false }) { Text("Закрыть") } }
+            confirmButton = { TextButton(onClick = { showMaterials = false }) { Text(stringResource(R.string.close)) } }
         )
     }
 }
@@ -1073,30 +1069,30 @@ fun ProjectsScreen(
     Column(Modifier.fillMaxSize().padding(adaptivePagePadding())) {
         if (compact) {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 2)
-                OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) { Text("Импорт") }
+                Text(stringResource(R.string.saved_projects), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 2)
+                OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_project)) }
             }
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Сохранённые проекты", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                OutlinedButton(onClick = onImport) { Text("Импорт") }
+                Text(stringResource(R.string.saved_projects), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = onImport) { Text(stringResource(R.string.import_project)) }
             }
         }
-        if (projects.isEmpty()) Text("Пока нет проектов.", Modifier.padding(top = 16.dp))
+        if (projects.isEmpty()) Text(stringResource(R.string.no_projects), Modifier.padding(top = 16.dp))
         LazyColumn {
             itemsIndexed(projects) { _, p ->
                 Card(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(p.name, fontWeight = FontWeight.Bold)
-                        Text("${p.width}×${p.height} • ${p.colors} цветов • Aida ${p.fabricCount} • ${p.progress}% готово")
+                        Text(stringResource(R.string.project_summary, p.width, p.height, p.colors, p.fabricCount, p.progress))
                         Row(
                             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            TextButton(onClick = { onOpen(p) }) { Text("Открыть", maxLines = 1) }
-                            TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text("Переименовать", maxLines = 1) }
-                            TextButton(onClick = { onExport(p) }) { Text("Экспорт", maxLines = 1) }
-                            TextButton(onClick = { deleteTarget = p }) { Text("Удалить", maxLines = 1) }
+                            TextButton(onClick = { onOpen(p) }) { Text(stringResource(R.string.open), maxLines = 1) }
+                            TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text(stringResource(R.string.rename), maxLines = 1) }
+                            TextButton(onClick = { onExport(p) }) { Text(stringResource(R.string.export), maxLines = 1) }
+                            TextButton(onClick = { deleteTarget = p }) { Text(stringResource(R.string.delete), maxLines = 1) }
                         }
                     }
                 }
@@ -1107,12 +1103,12 @@ fun ProjectsScreen(
     renameTarget?.let { project ->
         AlertDialog(
             onDismissRequest = { renameTarget = null },
-            title = { Text("Переименовать проект") },
+            title = { Text(stringResource(R.string.rename_project)) },
             text = {
                 OutlinedTextField(
                     value = renameText,
                     onValueChange = { renameText = it.take(60) },
-                    label = { Text("Название") },
+                    label = { Text(stringResource(R.string.name)) },
                     singleLine = true
                 )
             },
@@ -1120,21 +1116,21 @@ fun ProjectsScreen(
                 TextButton(
                     enabled = renameText.isNotBlank(),
                     onClick = { onRename(project, renameText); renameTarget = null }
-                ) { Text("Сохранить") }
+                ) { Text(stringResource(R.string.save)) }
             },
-            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
     deleteTarget?.let { project ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Удалить проект?") },
-            text = { Text("Проект «${project.name}» и сохранённый прогресс будут удалены без возможности восстановления.") },
+            title = { Text(stringResource(R.string.delete_project_q)) },
+            text = { Text(stringResource(R.string.delete_project_text, project.name)) },
             confirmButton = {
-                TextButton(onClick = { onDelete(project); deleteTarget = null }) { Text("Удалить") }
+                TextButton(onClick = { onDelete(project); deleteTarget = null }) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 }
@@ -1151,8 +1147,8 @@ fun ProScreen(
         verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 10.dp else 12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Версия ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(if (isPro) "Pro активирован ✓" else "Полная версия для больших и детальных схем")
+        Text(stringResource(R.string.version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (isPro) stringResource(R.string.pro_active) else stringResource(R.string.pro_tagline))
         statusMessage?.let { status ->
             Card(Modifier.fillMaxWidth()) {
                 Text(status, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
@@ -1160,26 +1156,26 @@ fun ProScreen(
         }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Что входит в Pro", fontWeight = FontWeight.Bold)
-                Text("✓ Большие схемы до ${ReleaseConfig.PRO_MAX_WIDTH} крестиков по ширине")
-                Text("✓ До ${ReleaseConfig.PRO_MAX_COLORS} цветов DMC")
-                Text("✓ Экспорт PDF, PNG и CSV")
-                Text("✓ Сохранение, импорт и резервные копии проектов")
-                Text("✓ Отслеживание прогресса вышивки")
+                Text(stringResource(R.string.pro_includes), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.pro_large_patterns, ReleaseConfig.PRO_MAX_WIDTH))
+                Text(stringResource(R.string.pro_colors, ReleaseConfig.PRO_MAX_COLORS))
+                Text(stringResource(R.string.pro_export))
+                Text(stringResource(R.string.pro_projects))
+                Text(stringResource(R.string.pro_progress))
             }
         }
-        if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text("Получить StitchCraft Pro") }
-        OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text("Восстановить покупку") }
-        Text("Разовая покупка Pro через Google Play. После покупки доступ можно восстановить на другом устройстве с тем же аккаунтом Google.", style = MaterialTheme.typography.bodySmall)
+        if (!isPro) Button(onClick = onBuy, Modifier.fillMaxWidth()) { Text(stringResource(R.string.get_pro)) }
+        OutlinedButton(onClick = onRestore, Modifier.fillMaxWidth()) { Text(stringResource(R.string.restore_purchase)) }
+        Text(stringResource(R.string.pro_purchase_info), style = MaterialTheme.typography.bodySmall)
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        Text("О приложении", fontWeight = FontWeight.Bold)
-        Text("StitchCraft превращает изображения в схемы для вышивки крестиком и помогает вести прогресс проекта.", style = MaterialTheme.typography.bodySmall)
-        Text("Поддержка: ${ReleaseConfig.SUPPORT_EMAIL}", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.about), fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.about_desc), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.support, ReleaseConfig.SUPPORT_EMAIL), style = MaterialTheme.typography.bodySmall)
         val context = LocalContext.current
         OutlinedButton(
             onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ReleaseConfig.PRIVACY_POLICY_URL))) } },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Политика конфиденциальности") }
+        ) { Text(stringResource(R.string.privacy_policy)) }
     }
 }
