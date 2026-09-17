@@ -584,47 +584,55 @@ fun PatternScreen(
 
         // Primary edit actions must always stay on-screen. Rare zoom actions live in a compact menu
         // instead of forcing the toolbar to overflow horizontally on phones such as Mi 8.
+        // Compact two-row toolbar. Keep the six most-used actions visible even on narrow phones
+        // and with enlarged system fonts; no horizontal scrolling is needed for commands.
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             FilterChip(
                 selected = tool == EditTool.COMPLETE,
                 onClick = { tool = EditTool.COMPLETE },
-                label = { Text("✓ Готово") },
-                modifier = Modifier.weight(1f)
+                label = { Text("✓ Отметить", maxLines = 1, softWrap = false) },
+                modifier = Modifier.weight(1f).height(48.dp)
             )
             FilterChip(
                 selected = tool == EditTool.COLOR,
                 onClick = { tool = EditTool.COLOR },
-                label = { Text("✎ Цвет") },
-                modifier = Modifier.weight(1f)
+                label = { Text("✎ Цвет", maxLines = 1, softWrap = false) },
+                modifier = Modifier.weight(1f).height(48.dp)
             )
             FilterChip(
                 selected = tool == EditTool.ERASE,
                 onClick = { tool = EditTool.ERASE },
-                label = { Text("⌫ Ластик") },
-                modifier = Modifier.weight(1f)
+                label = { Text("⌫ Ластик", maxLines = 1, softWrap = false) },
+                modifier = Modifier.weight(1f).height(48.dp)
             )
         }
 
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             OutlinedButton(
                 onClick = ::undoEdit,
                 enabled = undo.isNotEmpty(),
-                modifier = Modifier.weight(1f)
-            ) { Text("↶ Назад") }
+                modifier = Modifier.weight(1f).height(46.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("↶ Назад", maxLines = 1, softWrap = false) }
             OutlinedButton(
                 onClick = ::redoEdit,
                 enabled = redo.isNotEmpty(),
-                modifier = Modifier.weight(1f)
-            ) { Text("↷ Вперёд") }
+                modifier = Modifier.weight(1f).height(46.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("↷ Вперёд", maxLines = 1, softWrap = false) }
 
-            Box {
-                OutlinedButton(onClick = { viewMenuExpanded = true }) { Text("⋮ Меню") }
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { viewMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) { Text("⋮ Меню", maxLines = 1, softWrap = false) }
                 DropdownMenu(
                     expanded = viewMenuExpanded,
                     onDismissRequest = { viewMenuExpanded = false }
@@ -727,14 +735,37 @@ fun PatternScreen(
             style = MaterialTheme.typography.bodySmall
         )
 
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(onClick = { onSave(pattern) }) { Text("Сохранить") }
-            Button(onClick = { onPdf(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PDF") }
-            Button(onClick = { onCsv(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("CSV") }
-            Button(onClick = { onPng(pattern) }, enabled = isPro || BuildConfig.DEBUG) { Text("PNG") }
+        // Export actions are a fixed 2×2 grid so none can disappear beyond the right edge.
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Button(
+                    onClick = { onSave(pattern) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Сохранить", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { onPdf(pattern) },
+                    enabled = isPro || BuildConfig.DEBUG,
+                    modifier = Modifier.weight(1f)
+                ) { Text("PDF") }
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Button(
+                    onClick = { onCsv(pattern) },
+                    enabled = isPro || BuildConfig.DEBUG,
+                    modifier = Modifier.weight(1f)
+                ) { Text("CSV") }
+                Button(
+                    onClick = { onPng(pattern) },
+                    enabled = isPro || BuildConfig.DEBUG,
+                    modifier = Modifier.weight(1f)
+                ) { Text("PNG") }
+            }
         }
         OutlinedButton(
             onClick = { showMaterials = true },
