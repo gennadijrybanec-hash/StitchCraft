@@ -1167,7 +1167,7 @@ fun ProScreen(
         verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 10.dp else 12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.version, BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.version, "1.0"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (isPro) stringResource(R.string.pro_active) else stringResource(R.string.pro_tagline))
         statusMessage?.let { status ->
             Card(Modifier.fillMaxWidth()) {
