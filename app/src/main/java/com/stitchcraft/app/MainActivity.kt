@@ -379,19 +379,25 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                         message = context.getString(R.string.project_saved_progress, p.progressPercent())
                     },
                     onPdf = { p ->
+                        if (isPro) {
                         val f = ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}", fabricCount)
                         pendingPdfFile = f
 pdfSaveLauncher.launch(f.name)
+                        } else { message = context.getString(R.string.pro_tagline) }
                     },
                     onCsv = { p ->
+                        if (isPro) {
                         val f = ExportManager.exportCsv(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
                         pendingCsvFile = f
 csvSaveLauncher.launch(f.name)
+                        } else { message = context.getString(R.string.pro_tagline) }
                     },
                     onPng = { p ->
+                        if (isPro) {
                         val f = ExportManager.exportPng(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
                     pendingPngFile = f
 pngSaveLauncher.launch(f.name)
+                        } else { message = context.getString(R.string.pro_tagline) }
                     }
                 )
 
@@ -764,7 +770,7 @@ fun PatternScreen(
                 ) { Text(stringResource(R.string.save), maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { onPdf(pattern) },
-                    enabled = isPro || BuildConfig.DEBUG,
+                    enabled = isPro,
                     modifier = Modifier.weight(1f)
                 ) { Text("PDF") }
             }
@@ -774,12 +780,12 @@ fun PatternScreen(
             ) {
                 Button(
                     onClick = { onCsv(pattern) },
-                    enabled = isPro || BuildConfig.DEBUG,
+                    enabled = isPro,
                     modifier = Modifier.weight(1f)
                 ) { Text("CSV") }
                 Button(
                     onClick = { onPng(pattern) },
-                    enabled = isPro || BuildConfig.DEBUG,
+                    enabled = isPro,
                     modifier = Modifier.weight(1f)
                 ) { Text("PNG") }
             }
