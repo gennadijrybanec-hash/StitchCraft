@@ -226,7 +226,9 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
     }
     pendingCsvFile = null
 }
-    var isPro by remember { mutableStateOf(context.getSharedPreferences("prefs", 0).getBoolean("pro", false)) }
+    // Never treat a locally cached flag as proof of a Play purchase.
+    // Entitlement is granted only after BillingManager reports a PURCHASED product.
+    var isPro by remember { mutableStateOf(false) }
     val store = remember { ProjectStore(context) }
     var projects by remember { mutableStateOf(store.list()) }
     var pendingProjectExport by remember { mutableStateOf<SavedProject?>(null) }
@@ -264,7 +266,6 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
             context = context,
             onProChanged = { pro ->
                 isPro = pro
-                context.getSharedPreferences("prefs", 0).edit().putBoolean("pro", pro).apply()
             },
             onMessage = { message = it }
         )
