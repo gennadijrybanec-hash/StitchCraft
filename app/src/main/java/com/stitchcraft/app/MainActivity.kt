@@ -323,12 +323,15 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
         BillingManager(
             context = context,
             onProChanged = { pro ->
-                isPro = pro
+                if (!BuildConfig.FORCE_FREE_TEST) isPro = pro
             },
             onMessage = { message = it }
         )
     }
-    DisposableEffect(Unit) { billing.start(); onDispose { billing.stop() } }
+    DisposableEffect(Unit) {
+        if (!BuildConfig.FORCE_FREE_TEST) billing.start()
+        onDispose { if (!BuildConfig.FORCE_FREE_TEST) billing.stop() }
+    }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri
@@ -562,8 +565,8 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                 3 -> ProScreen(
                     isPro = isPro,
                     statusMessage = message,
-                    onBuy = { billing.purchase(context as Activity) },
-                    onRestore = { billing.restore() }
+                    onBuy = { if (!BuildConfig.FORCE_FREE_TEST) billing.purchase(context as Activity) },
+                    onRestore = { if (!BuildConfig.FORCE_FREE_TEST) billing.restore() }
                 )
             }
             message?.let { Text(it, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall) }
@@ -1312,6 +1315,7 @@ fun ProScreen(
         verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 10.dp else 12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        if (BuildConfig.FORCE_FREE_TEST) Text("FREE TEST: покупки отключены, Pro принудительно выключен", color = MaterialTheme.colorScheme.error)
         Text(stringResource(R.string.version, "1.0"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (isPro) stringResource(R.string.pro_active) else stringResource(R.string.pro_tagline))
         statusMessage?.let { status ->

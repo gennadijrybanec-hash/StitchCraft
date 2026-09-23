@@ -1,0 +1,10 @@
+StitchCraft v146 — отдельная диагностическая FREE TEST APK.
+1. GitHub: StitchCraft -> main -> Add file -> Upload files.
+2. Перетащить папки app и .github из этого комплекта (4 файла), подтвердить пути.
+3. Коммит: Add isolated FREE TEST build for StitchCraft v146
+4. Actions -> StitchCraft FREE TEST APK (manual only) -> Run workflow (main).
+5. Скачать artifact StitchCraft-v146-FREE-TEST-APK-NOT-FOR-PLAY, распаковать, установить APK.
+На телефоне появится отдельное приложение «StitchCraft FREE TEST»; обычный StitchCraft с Pro останется без изменений. В диагностическом приложении Pro всегда выключен, платёжные запросы не запускаются. Проверить максимумы цветов/крестиков, доступность сохранения и экспорта PDF/PNG/CSV.
+НЕ загружать диагностический APK/AAB в Google Play. НЕ запускать основной workflow для этого теста; в main.yml сборка обычного продукта остаётся без изменений.
+Вернуться с результатами проверки. Удалить тестовое приложение после проверки, основное не трогать.
+Компиляция и тест на телефоне выполняются через GitHub; здесь компиляция Android не запускалась.
