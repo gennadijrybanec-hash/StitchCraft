@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -48,6 +49,8 @@ import kotlin.math.pow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
@@ -184,12 +187,16 @@ val pngSaveLauncher = rememberLauncherForActivityResult(
 ) { uri ->
     val file = pendingPngFile
     if (uri != null && file != null) {
-        context.contentResolver.openOutputStream(uri)?.use { output ->
-            file.inputStream().use { input ->
-                input.copyTo(output)
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        file.inputStream().use { input -> input.copyTo(output) }
+                    } ?: error("Cannot open output")
+                }.isSuccess
             }
+            message = context.getString(if (saved) R.string.png_saved else R.string.image_process_failed)
         }
-        message = context.getString(R.string.png_saved)
     }
     pendingPngFile = null
 }
@@ -200,12 +207,16 @@ val pdfSaveLauncher = rememberLauncherForActivityResult(
 ) { uri ->
     val file = pendingPdfFile
     if (uri != null && file != null) {
-        context.contentResolver.openOutputStream(uri)?.use { output ->
-            file.inputStream().use { input ->
-                input.copyTo(output)
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        file.inputStream().use { input -> input.copyTo(output) }
+                    } ?: error("Cannot open output")
+                }.isSuccess
             }
+            message = context.getString(if (saved) R.string.pdf_saved else R.string.image_process_failed)
         }
-        message = context.getString(R.string.pdf_saved)
     }
     pendingPdfFile = null
 }
@@ -217,12 +228,16 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
 ) { uri ->
     val file = pendingCsvFile
     if (uri != null && file != null) {
-        context.contentResolver.openOutputStream(uri)?.use { output ->
-            file.inputStream().use { input ->
-                input.copyTo(output)
+        scope.launch {
+            val saved = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        file.inputStream().use { input -> input.copyTo(output) }
+                    } ?: error("Cannot open output")
+                }.isSuccess
             }
+            message = context.getString(if (saved) R.string.csv_saved else R.string.image_process_failed)
         }
-        message = context.getString(R.string.csv_saved)
     }
     pendingCsvFile = null
 }
@@ -237,28 +252,37 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.stitchcraft.project+json")
     ) { uri ->
         val project = pendingProjectExport
-        if (uri != null && project != null) {
-            val bytes = store.exportProject(project)
-            if (bytes != null) {
-                runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } }
-                    .onSuccess { message = context.getString(R.string.project_exported) }
-                    .onFailure { message = context.getString(R.string.project_export_failed) }
-            } else message = context.getString(R.string.project_export_failed)
-        }
         pendingProjectExport = null
+        if (uri != null && project != null) {
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = requireNotNull(store.exportProject(project))
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                            ?: error("Cannot open output")
+                    }.isSuccess
+                }
+                message = context.getString(if (ok) R.string.project_exported else R.string.project_export_failed)
+            }
+        }
     }
 
     val projectImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val imported = runCatching {
-                context.contentResolver.openInputStream(uri)?.use { store.importProject(it.readBytes()) }
-            }.getOrNull()
-            if (imported != null) {
-                projects = store.list()
-                message = context.getString(R.string.project_imported, imported.name)
-            } else message = context.getString(R.string.not_stitchcraft_project)
+            scope.launch {
+                busy = true
+                try {
+                    val imported = withContext(Dispatchers.IO) {
+                        runCatching { context.contentResolver.openInputStream(uri)?.use { store.importProject(it.readBytes()) } }.getOrNull()
+                    }
+                    if (imported != null) {
+                        projects = withContext(Dispatchers.IO) { store.list() }
+                        message = context.getString(R.string.project_imported, imported.name)
+                    } else message = context.getString(R.string.not_stitchcraft_project)
+                } finally { busy = false }
+            }
         }
     }
     val billing = remember {
@@ -282,12 +306,12 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
 
     LaunchedEffect(initialImportUri) {
         val uri = initialImportUri ?: return@LaunchedEffect
-        val imported = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { store.importProject(it.readBytes()) }
-        }.getOrNull()
+        val imported = withContext(Dispatchers.IO) {
+            runCatching { context.contentResolver.openInputStream(uri)?.use { store.importProject(it.readBytes()) } }.getOrNull()
+        }
         if (imported != null) {
             projects = store.list()
-            val loaded = store.load(imported)
+            val loaded = withContext(Dispatchers.IO) { store.load(imported) }
             if (loaded != null) {
                 pattern = loaded
                 activeProject = imported
@@ -374,42 +398,86 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                     onSave = { p ->
                         val existing = activeProject
                         val name = existing?.name ?: "Pattern_" + SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-                        activeProject = store.save(name, p, existing?.id, fabricCount)
-                        projects = store.list()
-                        message = context.getString(R.string.project_saved_progress, p.progressPercent())
+                        scope.launch {
+                            busy = true
+                            try {
+                                val (saved, percent) = withContext(Dispatchers.IO) {
+                                    store.save(name, p, existing?.id, fabricCount) to p.progressPercent()
+                                }
+                                val all = withContext(Dispatchers.IO) { store.list() }
+                                activeProject = saved
+                                projects = all
+                                message = context.getString(R.string.project_saved_progress, percent)
+                            } catch (e: Exception) {
+                                message = e.message ?: context.getString(R.string.image_process_failed)
+                            } finally { busy = false }
+                        }
                     },
                     onPdf = { p ->
                         if (isPro) {
-                        val f = ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}", fabricCount)
-                        pendingPdfFile = f
-pdfSaveLauncher.launch(f.name)
-                        } else { message = context.getString(R.string.pro_tagline) }
+                            scope.launch {
+                                busy = true
+                                try {
+                                    val f = withContext(Dispatchers.IO) {
+                                        ExportManager.exportPdf(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}", fabricCount)
+                                    }
+                                    pendingPdfFile = f
+                                    pdfSaveLauncher.launch(f.name)
+                                } catch (e: Exception) {
+                                    message = e.message ?: context.getString(R.string.image_process_failed)
+                                } finally { busy = false }
+                            }
+                        } else message = context.getString(R.string.pro_tagline)
                     },
                     onCsv = { p ->
                         if (isPro) {
-                        val f = ExportManager.exportCsv(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
-                        pendingCsvFile = f
-csvSaveLauncher.launch(f.name)
-                        } else { message = context.getString(R.string.pro_tagline) }
+                            scope.launch {
+                                busy = true
+                                try {
+                                    val f = withContext(Dispatchers.IO) {
+                                        ExportManager.exportCsv(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
+                                    }
+                                    pendingCsvFile = f
+                                    csvSaveLauncher.launch(f.name)
+                                } catch (e: Exception) {
+                                    message = e.message ?: context.getString(R.string.image_process_failed)
+                                } finally { busy = false }
+                            }
+                        } else message = context.getString(R.string.pro_tagline)
                     },
                     onPng = { p ->
                         if (isPro) {
-                        val f = ExportManager.exportPng(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
-                    pendingPngFile = f
-pngSaveLauncher.launch(f.name)
-                        } else { message = context.getString(R.string.pro_tagline) }
+                            scope.launch {
+                                busy = true
+                                try {
+                                    val f = withContext(Dispatchers.IO) {
+                                        ExportManager.exportPng(context, p, activeProject?.name ?: "StitchCraft_${System.currentTimeMillis()}")
+                                    }
+                                    pendingPngFile = f
+                                    pngSaveLauncher.launch(f.name)
+                                } catch (e: Exception) {
+                                    message = e.message ?: context.getString(R.string.image_process_failed)
+                                } finally { busy = false }
+                            }
+                        } else message = context.getString(R.string.pro_tagline)
                     }
                 )
 
                 2 -> ProjectsScreen(
                     projects,
                     onOpen = { saved ->
-                        store.load(saved)?.let {
-                            pattern = it
-                            activeProject = saved
-                            fabricCount = saved.fabricCount
-                            editingSession++
-                            tab = 1
+                        scope.launch {
+                            busy = true
+                            try {
+                                val loaded = withContext(Dispatchers.IO) { store.load(saved) }
+                                if (loaded != null) {
+                                    pattern = loaded
+                                    activeProject = saved
+                                    fabricCount = saved.fabricCount
+                                    editingSession++
+                                    tab = 1
+                                }
+                            } finally { busy = false }
                         }
                     },
                     onRename = { saved, newName ->
@@ -540,8 +608,9 @@ fun PatternScreen(
     val redo = remember(sessionId) { mutableStateListOf<StitchPattern>() }
 
     fun applyEdit(next: StitchPattern) {
-        if (next == pattern) return
-        if (undo.size >= 50) undo.removeAt(0)
+        // Avoid data-class equality across every stitch (90k comparisons per tap).
+        if (next === pattern) return
+        if (undo.size >= if (pattern.cells.size > 40_000) 8 else 50) undo.removeAt(0)
         undo.add(pattern)
         redo.clear()
         onPatternChange(next)
@@ -550,7 +619,7 @@ fun PatternScreen(
     fun undoEdit() {
         if (undo.isEmpty()) return
         val previous = undo.removeAt(undo.lastIndex)
-        if (redo.size >= 50) redo.removeAt(0)
+        if (redo.size >= if (pattern.cells.size > 40_000) 8 else 50) redo.removeAt(0)
         redo.add(pattern)
         onPatternChange(previous)
     }
@@ -558,7 +627,7 @@ fun PatternScreen(
     fun redoEdit() {
         if (redo.isEmpty()) return
         val next = redo.removeAt(redo.lastIndex)
-        if (undo.size >= 50) undo.removeAt(0)
+        if (undo.size >= if (pattern.cells.size > 40_000) 8 else 50) undo.removeAt(0)
         undo.add(pattern)
         onPatternChange(next)
     }
@@ -566,7 +635,8 @@ fun PatternScreen(
     // Calculate all progress/palette counters in one pass and reuse them until the pattern changes.
     // The previous UI repeatedly scanned every cell once per palette row, which becomes expensive
     // on 40k+ stitch charts.
-    val stats = remember(pattern) {
+    val stats by produceState<PatternStats?>(initialValue = null, System.identityHashCode(pattern)) {
+        value = withContext(Dispatchers.Default) {
         val counts = IntArray(pattern.palette.size)
         val completedByColor = IntArray(pattern.palette.size)
         var total = 0
@@ -582,9 +652,10 @@ fun PatternScreen(
             }
         }
         PatternStats(total, done, counts, completedByColor)
+        }
     }
-    val total = stats.total
-    val done = stats.done
+    val total = stats?.total ?: 0
+    val done = stats?.done ?: 0
     val finishedWidthCm = pattern.width.toFloat() / fabricCount * 2.54f
     val finishedHeightCm = pattern.height.toFloat() / fabricCount * 2.54f
 
@@ -599,7 +670,7 @@ fun PatternScreen(
     ) {
         Text(stringResource(R.string.pattern_summary, pattern.width, pattern.height, pattern.palette.size), fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.fabric_dimensions, fabricCount, finishedWidthCm, finishedHeightCm))
-        Text(stringResource(R.string.progress, done, total, pattern.progressPercent()), style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.progress, done, total, if (total == 0) 0 else (done * 100.0 / total).roundToInt()), style = MaterialTheme.typography.bodyMedium)
         LinearProgressIndicator(
             progress = { if (total == 0) 0f else done.toFloat() / total.toFloat() },
             modifier = Modifier.fillMaxWidth()
@@ -797,8 +868,8 @@ fun PatternScreen(
 
         Text(stringResource(R.string.palette), fontWeight = FontWeight.Bold)
         pattern.palette.forEachIndexed { i, c ->
-            val count = stats.counts.getOrElse(i) { 0 }
-            val completedForColor = stats.completedByColor.getOrElse(i) { 0 }
+            val count = stats?.counts?.getOrElse(i) { 0 } ?: 0
+            val completedForColor = stats?.completedByColor?.getOrElse(i) { 0 } ?: 0
             Text(
                 "${PatternEngine.symbolForIndex(i)}  ${c.code} • ${c.name} — $completedForColor/$count",
                 Modifier.padding(vertical = 2.dp)
@@ -825,7 +896,7 @@ fun PatternScreen(
                     Text(stringResource(R.string.dmc_threads), fontWeight = FontWeight.Bold)
                     Text(stringResource(R.string.tap_color_shop), style = MaterialTheme.typography.bodySmall)
                     pattern.palette.forEachIndexed { index, thread ->
-                        val count = stats.counts.getOrElse(index) { 0 }
+                        val count = stats?.counts?.getOrElse(index) { 0 } ?: 0
                         OutlinedButton(
                             onClick = { openMaterialSearch(context, "DMC ${thread.code} embroidery floss buy") },
                             modifier = Modifier.fillMaxWidth()
@@ -862,6 +933,7 @@ fun PatternCanvas(
     // completed/erased/recolored cell, so reset only for a new session or explicit fit.
     val currentOnCellTap by rememberUpdatedState(onCellTap)
     val currentOnZoom by rememberUpdatedState(onZoom)
+    val currentGestureScale by rememberUpdatedState(scale)
     // Pan belongs to the viewport, not to the pattern data. Reset only for a new session
     // or an explicit "fit to screen" action. This keeps editing from snapping the view.
     var pan by remember(sessionId, viewResetKey) { mutableStateOf(Offset.Zero) }
@@ -871,9 +943,14 @@ fun PatternCanvas(
 
     // Fast low-zoom preview: one bitmap pixel represents one stitch. At fit-to-screen this
     // replaces tens of thousands of individual drawRect calls with a single bitmap draw.
-    val fastPreview = remember(pattern, focusColor) {
+    // Rasterise off the main thread. Changing one stitch on a 300×300 chart must not
+    // block pointer events, scrolling or Android's main-thread watchdog.
+    // produceState cancels stale work when a newer edit or focus choice arrives.
+    val fastPreview by produceState<ImageBitmap?>(initialValue = null, System.identityHashCode(pattern), focusColor) {
+        value = withContext(Dispatchers.Default) {
         val pixels = IntArray(pattern.width * pattern.height)
         pattern.cells.forEachIndexed { index, pc ->
+            if (index % 2048 == 0) coroutineContext.ensureActive()
             val rgb = when {
                 pc.erased -> android.graphics.Color.WHITE
                 pc.completed -> android.graphics.Color.rgb(46, 125, 50)
@@ -899,18 +976,19 @@ fun PatternCanvas(
             pattern.height,
             android.graphics.Bitmap.Config.ARGB_8888
         ).asImageBitmap()
+        }
     }
 
     Canvas(
         modifier
             .background(Color.White)
             .clipToBounds()
-            .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
+            .pointerInput(pattern.width, pattern.height, sessionId, viewResetKey) {
                 detectTapGestures { offset ->
                     val cellSize = minOf(
                         size.width / pattern.width,
                         size.height / pattern.height
-                    ) * scale
+                    ) * currentGestureScale
                     val offsetX = (size.width - pattern.width * cellSize) / 2f + pan.x
                     val offsetY = (size.height - pattern.height * cellSize) / 2f + pan.y
                     if (cellSize <= 0f) return@detectTapGestures
@@ -919,7 +997,7 @@ fun PatternCanvas(
                     if (x in 0 until pattern.width && y in 0 until pattern.height) currentOnCellTap(x, y)
                 }
             }
-            .pointerInput(pattern.width, pattern.height, scale, sessionId, viewResetKey) {
+            .pointerInput(pattern.width, pattern.height, sessionId, viewResetKey) {
                 // Keep the fast two-finger zoom behaviour from v134, while retaining v135 pan.
                 // One finger is consumed only when the chart is enlarged, so the page can still
                 // scroll normally at fit-to-screen scale.
@@ -940,14 +1018,14 @@ fun PatternCanvas(
                             val zoom = if (previousDistance > 0.01f) currentDistance / previousDistance else 1f
                             if (zoom.isFinite() && zoom > 0f) currentOnZoom(zoom)
                             pressed.forEach { it.consume() }
-                        } else if (pressed.size == 1 && scale > 1.01f) {
+                        } else if (pressed.size == 1 && currentGestureScale > 1.01f) {
                             val change = pressed[0]
                             val delta = change.position - change.previousPosition
                             if (delta != Offset.Zero) {
                                 val cellSize = minOf(
                                     size.width / pattern.width,
                                     size.height / pattern.height
-                                ) * scale
+                                ) * currentGestureScale
                                 val contentWidth = pattern.width * cellSize
                                 val contentHeight = pattern.height * cellSize
                                 val maxPanX = ((contentWidth - size.width) / 2f).coerceAtLeast(0f)
@@ -1002,10 +1080,12 @@ fun PatternCanvas(
         // Below this size symbols are not useful. Use the cached raster preview instead of
         // painting every stitch separately; keep 10x10 guides when they are still readable.
         if (cellSize < 8f) {
+            val preview = fastPreview
+            if (preview == null) return@Canvas // Render the raster on a worker; never block UI.
             val dstWidth = (pattern.width * cellSize).roundToInt().coerceAtLeast(1)
             val dstHeight = (pattern.height * cellSize).roundToInt().coerceAtLeast(1)
             drawImage(
-                image = fastPreview,
+                image = preview,
                 dstOffset = IntOffset(offsetX.roundToInt(), offsetY.roundToInt()),
                 dstSize = IntSize(dstWidth, dstHeight),
                 filterQuality = FilterQuality.None
