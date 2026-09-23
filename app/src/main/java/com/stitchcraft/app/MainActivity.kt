@@ -127,6 +127,37 @@ private fun decodeBitmapForPattern(context: android.content.Context, uri: Uri, m
 
 enum class EditTool { COLOR, ERASE, COMPLETE }
 
+// An immutable display snapshot prepared on a worker BEFORE the editing screen is mounted.
+// Avoid starting a second expensive job at exactly the moment a 90k-stitch chart opens.
+private data class PatternDisplaySnapshot(
+    val source: StitchPattern,
+    val preview: ImageBitmap
+)
+
+private fun buildPatternPreview(pattern: StitchPattern, focusColor: Int = -1): ImageBitmap {
+    val pixels = IntArray(pattern.width * pattern.height)
+    pattern.cells.forEachIndexed { index, pc ->
+        val rgb = when {
+            pc.erased -> android.graphics.Color.WHITE
+            pc.completed -> android.graphics.Color.rgb(46, 125, 50)
+            else -> pattern.palette[pc.colorIndex].rgb
+        }
+        if (focusColor >= 0 && !pc.erased && pc.colorIndex != focusColor) {
+            val r = android.graphics.Color.red(rgb)
+            val g = android.graphics.Color.green(rgb)
+            val b = android.graphics.Color.blue(rgb)
+            pixels[index] = android.graphics.Color.rgb(
+                (r * .16f + 255f * .84f).roundToInt(),
+                (g * .16f + 255f * .84f).roundToInt(),
+                (b * .16f + 255f * .84f).roundToInt()
+            )
+        } else pixels[index] = rgb
+    }
+    return android.graphics.Bitmap.createBitmap(
+        pixels, pattern.width, pattern.height, android.graphics.Bitmap.Config.ARGB_8888
+    ).asImageBitmap()
+}
+
 private data class PatternStats(
     val total: Int,
     val done: Int,
@@ -176,6 +207,7 @@ fun StitchCraftApp(initialImportUri: Uri? = null) {
     var fabricCount by remember { mutableIntStateOf(14) }
     var cleanupSingles by remember { mutableStateOf(true) }
     var pattern by remember { mutableStateOf<StitchPattern?>(null) }
+    var displaySnapshot by remember { mutableStateOf<PatternDisplaySnapshot?>(null) }
     var editingSession by remember { mutableIntStateOf(0) }
     var activeProject by remember { mutableStateOf<SavedProject?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -299,6 +331,7 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri
         pattern = null
+        displaySnapshot = null
         activeProject = null
         editingSession++
     }
@@ -375,6 +408,12 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                 }
             }
 
+            // Prepare the initial 1-pixel-per-stitch viewport off the UI thread.
+            // The previous build started another rendering job while composing the new screen.
+            val prepared = withContext(Dispatchers.Default) {
+                PatternDisplaySnapshot(result, buildPatternPreview(result))
+            }
+            displaySnapshot = prepared
             pattern = result
             activeProject = null
             editingSession++
@@ -392,9 +431,10 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                 1 -> PatternScreen(
                     pattern = pattern,
                     sessionId = editingSession,
+                    initialPreview = displaySnapshot?.takeIf { it.source === pattern }?.preview,
                     isPro = isPro,
                     fabricCount = fabricCount,
-                    onPatternChange = { pattern = it },
+                    onPatternChange = { displaySnapshot = null; pattern = it },
                     onSave = { p ->
                         val existing = activeProject
                         val name = existing?.name ?: "Pattern_" + SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
@@ -583,6 +623,7 @@ Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
 fun PatternScreen(
     pattern: StitchPattern?,
     sessionId: Int,
+    initialPreview: ImageBitmap?,
     isPro: Boolean,
     fabricCount: Int,
     onPatternChange: (StitchPattern) -> Unit,
@@ -798,6 +839,7 @@ fun PatternScreen(
         PatternCanvas(
             pattern = pattern,
             sessionId = sessionId,
+            initialPreview = initialPreview,
             scale = scale,
             modifier = Modifier.fillMaxWidth().height(adaptiveCanvasHeight()),
             viewResetKey = viewResetKey,
@@ -922,6 +964,7 @@ private fun openMaterialSearch(context: android.content.Context, query: String) 
 fun PatternCanvas(
     pattern: StitchPattern,
     sessionId: Int,
+    initialPreview: ImageBitmap?,
     scale: Float,
     modifier: Modifier,
     viewResetKey: Int,
@@ -946,36 +989,15 @@ fun PatternCanvas(
     // Rasterise off the main thread. Changing one stitch on a 300×300 chart must not
     // block pointer events, scrolling or Android's main-thread watchdog.
     // produceState cancels stale work when a newer edit or focus choice arrives.
-    val fastPreview by produceState<ImageBitmap?>(initialValue = null, System.identityHashCode(pattern), focusColor) {
+    val fastPreview by produceState<ImageBitmap?>(
+        initialValue = if (focusColor < 0) initialPreview else null,
+        System.identityHashCode(pattern), focusColor
+    ) {
+        // The first preview was rendered before showing the editing screen.
+        if (focusColor < 0 && initialPreview != null) return@produceState
         value = withContext(Dispatchers.Default) {
-        val pixels = IntArray(pattern.width * pattern.height)
-        pattern.cells.forEachIndexed { index, pc ->
-            if (index % 2048 == 0) coroutineContext.ensureActive()
-            val rgb = when {
-                pc.erased -> android.graphics.Color.WHITE
-                pc.completed -> android.graphics.Color.rgb(46, 125, 50)
-                else -> pattern.palette[pc.colorIndex].rgb
-            }
-            if (focusColor >= 0 && !pc.erased && pc.colorIndex != focusColor) {
-                val r = android.graphics.Color.red(rgb)
-                val g = android.graphics.Color.green(rgb)
-                val b = android.graphics.Color.blue(rgb)
-                // Match the old faded focus look without adding per-cell alpha drawing work.
-                pixels[index] = android.graphics.Color.rgb(
-                    (r * .16f + 255f * .84f).roundToInt(),
-                    (g * .16f + 255f * .84f).roundToInt(),
-                    (b * .16f + 255f * .84f).roundToInt()
-                )
-            } else {
-                pixels[index] = rgb
-            }
-        }
-        android.graphics.Bitmap.createBitmap(
-            pixels,
-            pattern.width,
-            pattern.height,
-            android.graphics.Bitmap.Config.ARGB_8888
-        ).asImageBitmap()
+            coroutineContext.ensureActive()
+            buildPatternPreview(pattern, focusColor)
         }
     }
 

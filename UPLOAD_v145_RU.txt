@@ -1,0 +1,9 @@
+1. Распаковать архив WEB_UPLOAD_KIT. В GitHub StitchCraft выбрать main -> Add file -> Upload files.
+2. Перетащить папки app и .github из набора (или три файла с сохранением путей).
+   Проверить пути: app/build.gradle.kts,
+   app/src/main/java/com/stitchcraft/app/MainActivity.kt,
+   .github/workflows/main.yml.
+3. Коммит: StitchCraft v145: prepare large pattern preview before editor opens
+4. Дождаться зелёной сборки Actions, скачать APK. AAB пока НЕ публиковать.
+5. Проверить создание 300x300, 47-48 цветов, открытие схемы, zoom/pan и редактирование.
+   Если снова ANR, прислать текст/снимок ANR и указать, видна ли схема или только ожидание.
