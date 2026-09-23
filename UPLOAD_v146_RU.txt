@@ -1,0 +1,1 @@
+Ветка GitHub: main. Распакуйте архив, загрузите папку app через Add file → Upload files. Коммит: StitchCraft v146: bound large-chart rendering and compact navigation. Дождитесь Actions и проверьте APK. AAB пока не публиковать.

@@ -1,0 +1,1 @@
+StitchCraft v146: bound large-chart rendering and compact navigation

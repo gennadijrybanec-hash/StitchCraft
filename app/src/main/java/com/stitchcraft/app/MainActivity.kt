@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -24,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -364,11 +366,30 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            NavigationBar {
-                NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Text("✚") }, label = { Text(stringResource(R.string.nav_create)) })
-                NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Text("▦") }, label = { Text(stringResource(R.string.nav_pattern)) })
-                NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Text("☰") }, label = { Text(stringResource(R.string.nav_projects)) })
-                NavigationBarItem(selected = tab == 3, onClick = { tab = 3 }, icon = { Text("★") }, label = { Text("Pro") })
+            // Compact navigation: do not reserve a full-height Material NavigationBar above the editor.
+            Row(
+                Modifier.fillMaxWidth().height(60.dp)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val tabs = listOf(
+                    "✚" to stringResource(R.string.nav_create),
+                    "▦" to stringResource(R.string.nav_pattern),
+                    "☰" to stringResource(R.string.nav_projects),
+                    "★" to "Pro"
+                )
+                tabs.forEachIndexed { index, item ->
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight()
+                            .clickable { tab = index }
+                            .background(if (tab == index) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(item.first, style = MaterialTheme.typography.titleMedium)
+                        Text(item.second, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
+                }
             }
 
             when (tab) {
@@ -568,8 +589,11 @@ fun CreateScreen(
 ) {
     val compact = isCompactScreen()
     val pagePadding = adaptivePagePadding()
+    // The generate action stays visible while the settings scroll underneath it.
+    Box(Modifier.fillMaxSize()) {
     Column(
-        Modifier.padding(pagePadding).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().padding(start = pagePadding, end = pagePadding, top = pagePadding, bottom = 76.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp)
     ) {
         Text(stringResource(R.string.create_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -613,9 +637,15 @@ Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!isPro) {
             Text(stringResource(R.string.free_limits, ReleaseConfig.FREE_MAX_WIDTH, ReleaseConfig.FREE_MAX_COLORS), style = MaterialTheme.typography.bodySmall)
         }
-        Button(onClick = onGenerate, enabled = uri != null && !busy, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) stringResource(R.string.generating) else stringResource(R.string.create_pattern))
-        }
+    }
+    Button(
+        onClick = onGenerate,
+        enabled = uri != null && !busy,
+        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            .padding(horizontal = pagePadding, vertical = 8.dp).heightIn(min = 52.dp)
+    ) {
+        Text(if (busy) stringResource(R.string.generating) else stringResource(R.string.create_pattern))
+    }
     }
 }
 
@@ -1099,9 +1129,15 @@ fun PatternCanvas(
             }
         }
 
-        // Below this size symbols are not useful. Use the cached raster preview instead of
-        // painting every stitch separately; keep 10x10 guides when they are still readable.
-        if (cellSize < 8f) {
+        // A 90,000-cell chart must NOT switch to thousands of individual draw calls
+        // during a pinch. Keep the cached preview until the visible viewport is small
+        // enough for a bounded detailed pass. Small patterns retain their old behaviour.
+        val visibleColumns = (size.width / cellSize).toInt().coerceAtLeast(1) + 2
+        val visibleRows = (size.height / cellSize).toInt().coerceAtLeast(1) + 2
+        val heavyViewport = visibleColumns.toLong() * visibleRows.toLong() > 900L
+        val rasterMode = cellSize < 8f ||
+            (pattern.cells.size > 40_000 && (cellSize < 16f || heavyViewport))
+        if (rasterMode) {
             val preview = fastPreview
             if (preview == null) return@Canvas // Render the raster on a worker; never block UI.
             val dstWidth = (pattern.width * cellSize).roundToInt().coerceAtLeast(1)

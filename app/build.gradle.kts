@@ -12,8 +12,8 @@ android {
         applicationId = "com.stitchcraft.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 145
-        versionName = "1.0.3-rc-display-pipeline"
+        versionCode = 146
+        versionName = "1.0.4-rc-zoom-ui"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
