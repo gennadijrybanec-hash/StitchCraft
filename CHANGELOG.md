@@ -1,3 +1,12 @@
+# StitchCraft changelog
+
+## RC8 v135 — pan/zoom gesture fix
+- When the pattern is enlarged, one-finger drag now pans the pattern inside its viewport instead of scrolling the whole page.
+- Two-finger pinch still controls zoom and can pan at the same time.
+- At fit-to-screen scale, one finger remains available for normal page scrolling.
+- Pan is clamped to the enlarged pattern bounds and resets on "По размеру" / return to fit scale.
+- Hit-testing follows the panned viewport, so cell editing remains aligned with the visible stitch.
+
 ## v0.15.2
 - Fixed stale tap callback in PatternCanvas that caused only the latest completed stitch to remain.
 - Fixed pan offset resetting on every pattern edit, which made the visible check mark appear to jump.
@@ -99,3 +108,16 @@
 - Removed overly broad file VIEW handler that could intercept APK/open-with flows.
 - Preserved custom StitchCraft MIME association and in-app project import.
 - Updated RC artifact naming and release notes.
+
+## RC8 v134 — performance generation + API 36
+- bounded source-image decoding for large photos;
+- one-pass Lab conversion reused across generation stages;
+- incremental palette selection optimized for many colours;
+- lower-allocation compact palette remapping;
+- compileSdk/targetSdk 36 retained for the next Google Play AAB.
+
+
+## RC8 v140
+- Added in-app language selector: System / Русский / Українська / English.
+- Language choice is stored locally and applied after activity restart.
+- Unsupported system languages continue to use English resources as fallback.

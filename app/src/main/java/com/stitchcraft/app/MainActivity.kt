@@ -323,15 +323,12 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
         BillingManager(
             context = context,
             onProChanged = { pro ->
-                if (!BuildConfig.FORCE_FREE_TEST) isPro = pro
+                isPro = pro
             },
             onMessage = { message = it }
         )
     }
-    DisposableEffect(Unit) {
-        if (!BuildConfig.FORCE_FREE_TEST) billing.start()
-        onDispose { if (!BuildConfig.FORCE_FREE_TEST) billing.stop() }
-    }
+    DisposableEffect(Unit) { billing.start(); onDispose { billing.stop() } }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri
@@ -565,8 +562,8 @@ val csvSaveLauncher = rememberLauncherForActivityResult(
                 3 -> ProScreen(
                     isPro = isPro,
                     statusMessage = message,
-                    onBuy = { if (!BuildConfig.FORCE_FREE_TEST) billing.purchase(context as Activity) },
-                    onRestore = { if (!BuildConfig.FORCE_FREE_TEST) billing.restore() }
+                    onBuy = { billing.purchase(context as Activity) },
+                    onRestore = { billing.restore() }
                 )
             }
             message?.let { Text(it, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall) }
@@ -1253,14 +1250,25 @@ fun ProjectsScreen(
                     Column(Modifier.padding(12.dp)) {
                         Text(p.name, fontWeight = FontWeight.Bold)
                         Text(stringResource(R.string.project_summary, p.width, p.height, p.colors, p.fabricCount, p.progress))
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TextButton(onClick = { onOpen(p) }) { Text(stringResource(R.string.open), maxLines = 1) }
-                            TextButton(onClick = { renameTarget = p; renameText = p.name }) { Text(stringResource(R.string.rename), maxLines = 1) }
-                            TextButton(onClick = { onExport(p) }) { Text(stringResource(R.string.export), maxLines = 1) }
-                            TextButton(onClick = { deleteTarget = p }) { Text(stringResource(R.string.delete), maxLines = 1) }
+                        // Two equal-width rows keep every action visible on Mi 8 and
+                        // with large accessibility fonts; no horizontally clipped buttons.
+                        Column(Modifier.fillMaxWidth()) {
+                            Row(Modifier.fillMaxWidth()) {
+                                TextButton(onClick = { onOpen(p) }, modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.open), maxLines = 2)
+                                }
+                                TextButton(onClick = { renameTarget = p; renameText = p.name }, modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.rename), maxLines = 2)
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth()) {
+                                TextButton(onClick = { onExport(p) }, modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.export), maxLines = 2)
+                                }
+                                TextButton(onClick = { deleteTarget = p }, modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.delete), maxLines = 2)
+                                }
+                            }
                         }
                     }
                 }
@@ -1315,7 +1323,6 @@ fun ProScreen(
         verticalArrangement = Arrangement.spacedBy(if (isCompactScreen()) 10.dp else 12.dp)
     ) {
         Text("StitchCraft Pro", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        if (BuildConfig.FORCE_FREE_TEST) Text("FREE TEST: покупки отключены, Pro принудительно выключен", color = MaterialTheme.colorScheme.error)
         Text(stringResource(R.string.version, "1.0"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(if (isPro) stringResource(R.string.pro_active) else stringResource(R.string.pro_tagline))
         statusMessage?.let { status ->

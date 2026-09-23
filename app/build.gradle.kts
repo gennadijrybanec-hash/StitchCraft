@@ -12,12 +12,10 @@ android {
         applicationId = "com.stitchcraft.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 146
-        versionName = "1.0.4-rc-zoom-ui"
+        versionCode = 147
+        versionName = "1.0.5-commercial-rc"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
-        buildConfigField("boolean", "FORCE_FREE_TEST", "false")
-        manifestPlaceholders["appLabel"] = "StitchCraft"
     }
 
     signingConfigs {
@@ -46,14 +44,6 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("stableDebug")
-        }
-        create("freeTest") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".freetest"
-            versionNameSuffix = "-FREE-TEST"
-            buildConfigField("boolean", "FORCE_FREE_TEST", "true")
-            manifestPlaceholders["appLabel"] = "StitchCraft FREE TEST"
-            matchingFallbacks += listOf("debug")
         }
         release {
             isMinifyEnabled = true
